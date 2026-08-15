@@ -12,8 +12,8 @@
     --noir:#111111;
     --jaune:#E9CA55;
     --creme:#F7F5F0;
-    --case-claire:#EAE5DA;
-    --case-foncee:#9E978A;
+    --case-claire:#F2EFE7;
+    --case-foncee:#5E5E58;
     --gris:#6E6A63;
     --filet:#D8D3C7;
     --sq: 64px;
@@ -59,14 +59,33 @@
   @media (max-aspect-ratio: 1/1){ main{flex-direction:column;} }
 
   .zone-plateau{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0;min-width:0;}
-  .plateau-wrap{position:relative;}
+  .plateau-wrap{
+    position:relative;
+    padding:13px;
+    border-radius:3px;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 1px, rgba(17,17,17,.045) 2px 3px),
+      linear-gradient(165deg,#EDECE8 0%, #C3C2BE 30%, #F2F1ED 47%, #AEADA9 68%, #DCDBD7 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.85),
+      inset 0 -1px 2px rgba(17,17,17,.30),
+      0 20px 42px rgba(17,17,17,.30);
+  }
+  /* chant du socle : épaisseur visible sous le cadre */
+  .plateau-wrap::after{
+    content:"";position:absolute;left:2px;right:2px;bottom:-10px;height:11px;
+    background:linear-gradient(180deg,#9B9A96 0%, #6F6E6A 85%, #5C5B58 100%);
+    border-radius:0 0 5px 5px;
+    box-shadow:0 8px 18px rgba(17,17,17,.38);
+    z-index:-1;
+  }
 
   .board{
     display:grid;
     grid-template-columns:repeat(8,var(--sq));
     grid-template-rows:repeat(8,var(--sq));
-    border:1px solid var(--noir);
-    box-shadow:0 10px 30px rgba(17,17,17,.10);
+    border:1px solid #4E4B45;
+    box-shadow:inset 0 0 14px rgba(17,17,17,.14), 0 2px 6px rgba(17,17,17,.22);
     background:var(--case-claire);
   }
   .sq{
@@ -79,7 +98,7 @@
   .sq.foncee{background:var(--case-foncee);}
   .sq.dernier::after{
     content:"";position:absolute;inset:0;
-    background:var(--jaune);opacity:.34;pointer-events:none;
+    background:var(--jaune);opacity:.45;pointer-events:none;
   }
   .sq.select::after{
     content:"";position:absolute;inset:0;
@@ -91,11 +110,12 @@
   }
   .cible{
     position:absolute;width:26%;height:26%;border-radius:50%;
-    background:var(--noir);opacity:.20;pointer-events:none;
+    background:var(--jaune);opacity:.85;pointer-events:none;
+    box-shadow:0 0 0 1px rgba(17,17,17,.35);
   }
   .cible.prise{
     width:86%;height:86%;background:transparent;border-radius:50%;
-    box-shadow:inset 0 0 0 4px rgba(17,17,17,.22);opacity:1;
+    box-shadow:inset 0 0 0 4px var(--jaune);opacity:.9;
   }
   .piece{
     font-size:calc(var(--sq) * .78);
@@ -104,17 +124,21 @@
     filter:drop-shadow(0 2px 2px rgba(17,17,17,.30));
   }
   .piece.b{color:#FFFFFF;-webkit-text-stroke:calc(var(--sq)*.022) var(--noir);}
-  .piece.n{color:var(--noir);}
+  .piece.n{color:var(--noir);-webkit-text-stroke:calc(var(--sq)*.014) rgba(255,255,255,.85);}
   .fantome{
     position:fixed;z-index:60;pointer-events:none;
     display:flex;align-items:center;justify-content:center;
     transform:translate(-50%,-50%);
   }
   .fantome .piece{font-size:calc(var(--sq) * .92);filter:drop-shadow(0 8px 10px rgba(17,17,17,.35));}
+  .glisse{
+    position:fixed;z-index:55;pointer-events:none;
+    display:flex;align-items:center;justify-content:center;
+  }
 
-  .coords{position:absolute;color:var(--gris);font-size:9px;letter-spacing:1px;}
-  .coords.fichiers{left:0;right:0;bottom:-15px;display:grid;grid-template-columns:repeat(8,var(--sq));text-align:center;}
-  .coords.rangs{top:0;bottom:0;left:-14px;display:grid;grid-template-rows:repeat(8,var(--sq));align-items:center;text-align:right;}
+  .coords{position:absolute;color:#5D5C58;font-size:9px;letter-spacing:1px;text-shadow:0 1px 0 rgba(255,255,255,.4);}
+  .coords.fichiers{left:13px;right:13px;bottom:1px;display:grid;grid-template-columns:repeat(8,var(--sq));text-align:center;}
+  .coords.rangs{top:13px;bottom:13px;left:3px;display:grid;grid-template-rows:repeat(8,var(--sq));align-items:center;text-align:left;}
 
   /* ---------- panneau ---------- */
   .panneau{
@@ -456,8 +480,8 @@ function dessinerCoords(){
 
 function ajusterTaille(){
   const z = $('zonePlateau');
-  const dispo = Math.min(z.clientWidth - 28, z.clientHeight - 28);
-  const sq = Math.max(30, Math.floor(dispo / 8));
+  const dispo = Math.min(z.clientWidth - 28, z.clientHeight - 38);
+  const sq = Math.max(30, Math.floor((dispo - 26) / 8));
   document.documentElement.style.setProperty('--sq', sq + 'px');
 }
 
@@ -569,17 +593,24 @@ async function coupDuMoteur(){
   }
   moteurPense = true;
   majBoutons();
+  const t0 = Date.now();
   const cfg = NIVEAUX[niveau];
   const res = await Moteur.chercher(game.fen(), { skill:cfg.skill, movetime:cfg.movetime, depth:cfg.depth });
-  moteurPense = false;
-  if(!res || !res.best){ verifierFin(); majBoutons(); return; }
+  if(!res || !res.best){ moteurPense = false; verifierFin(); majBoutons(); return; }
+
+  // Temps de réflexion minimal perceptible, puis déplacement animé (~0,5 s)
+  const attente = Math.max(0, 800 - (Date.now() - t0));
+  await new Promise(r => setTimeout(r, attente));
 
   const from = res.best.slice(0,2), to = res.best.slice(2,4), pr = res.best.slice(4,5) || undefined;
-  game.move({ from, to, promotion: pr || 'q' });
+  const coup = game.move({ from, to, promotion: pr || 'q' });
+  await animerCoup(from, to, 500);
+  moteurPense = false;
   dernierCoup = { from, to };
   dessiner();
   if(verifierFin()) return;
-  majStatut('<strong>À toi de jouer.</strong><span class="trait">Tu joues les noirs</span>');
+  majStatut('<strong>Le moteur a joué : ' + annonceCoup(coup) + (game.in_check() ? ' — échec !' : '.') + '</strong>'
+          + '<span class="trait">À toi de jouer</span>');
   majBoutons();
 }
 
@@ -589,6 +620,37 @@ function ouvertureDuMoteur(){
   if(game.history().length > 0) return;
   majStatut('<strong>Le moteur ouvre la partie…</strong><span class="trait">' + NIVEAUX[niveau].nom + '</span>');
   setTimeout(coupDuMoteur, 200);
+}
+
+function annonceCoup(m){
+  if(m.san === 'O-O') return 'petit roque';
+  if(m.san === 'O-O-O') return 'grand roque';
+  let t = NOMS_FR[m.piece] + ' ' + m.from + ' \u2192 ' + m.to;
+  if(m.captured) t += ' \u2014 prend ' + (m.captured === 'p' ? 'ton pion' : ('ta ' + NOMS_FR[m.captured]).replace('ta roi','ton roi').replace('ta fou','ton fou').replace('ta cavalier','ton cavalier').replace('ta pion','ton pion'));
+  if(m.promotion) t += ', promotion en ' + NOMS_FR[m.promotion];
+  return t;
+}
+
+function animerCoup(from, to, dureeMs){
+  return new Promise((res) => {
+    const orig = document.querySelector('.sq[data-case="' + from + '"] .piece');
+    const cFrom = document.querySelector('.sq[data-case="' + from + '"]');
+    const cTo   = document.querySelector('.sq[data-case="' + to + '"]');
+    if(!orig || !cFrom || !cTo){ res(); return; }
+    const a = cFrom.getBoundingClientRect(), b = cTo.getBoundingClientRect();
+    const cl = document.createElement('div');
+    cl.className = 'glisse';
+    cl.style.width = a.width + 'px'; cl.style.height = a.height + 'px';
+    cl.style.left = a.left + 'px';   cl.style.top = a.top + 'px';
+    cl.innerHTML = orig.outerHTML;
+    document.body.appendChild(cl);
+    orig.style.opacity = '0';
+    requestAnimationFrame(() => {
+      cl.style.transition = 'left ' + dureeMs + 'ms ease-in-out, top ' + dureeMs + 'ms ease-in-out';
+      cl.style.left = b.left + 'px'; cl.style.top = b.top + 'px';
+    });
+    setTimeout(() => { cl.remove(); res(); }, dureeMs + 60);
+  });
 }
 
 function verifierFin(){
