@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>dune · échecs — v0</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<style>
+  :root{
+    --noir:#111111;
+    --jaune:#E9CA55;
+    --creme:#F7F5F0;
+    --case-claire:#EAE5DA;
+    --case-foncee:#9E978A;
+    --gris:#6E6A63;
+    --filet:#D8D3C7;
+    --sq: 64px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--creme);
+    color:var(--noir);
+    font-family:"Avenir Next","Helvetica Neue",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+    touch-action:manipulation;
+  }
+  .app{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---------- en-tête ---------- */
+  header{
+    flex:0 0 auto;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;
+    padding:10px 16px;
+    border-bottom:1px solid var(--filet);
+  }
+  .marque{display:flex;align-items:baseline;gap:10px;min-width:0;}
+  .marque .pastille{width:12px;height:12px;background:var(--jaune);flex:0 0 auto;align-self:center;}
+  .marque .nom{font-size:17px;font-weight:700;letter-spacing:.5px;}
+  .marque .sous{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gris);white-space:nowrap;}
+  .etat-moteur{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gris);white-space:nowrap;}
+  .led{width:8px;height:8px;border-radius:50%;background:var(--filet);}
+  .led.charge{background:var(--jaune);animation:pulse 1.1s infinite;}
+  .led.ok{background:#2e7d32;}
+  .led.ko{background:#b03a2e;}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+  /* ---------- corps ---------- */
+  main{flex:1 1 auto;display:flex;min-height:0;}
+  @media (max-aspect-ratio: 1/1){ main{flex-direction:column;} }
+
+  .zone-plateau{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0;min-width:0;}
+  .plateau-wrap{position:relative;}
+
+  .board{
+    display:grid;
+    grid-template-columns:repeat(8,var(--sq));
+    grid-template-rows:repeat(8,var(--sq));
+    border:1px solid var(--noir);
+    box-shadow:0 10px 30px rgba(17,17,17,.10);
+    background:var(--case-claire);
+  }
+  .sq{
+    position:relative;
+    display:flex;align-items:center;justify-content:center;
+    touch-action:none;
+    user-select:none;-webkit-user-select:none;
+  }
+  .sq.claire{background:var(--case-claire);}
+  .sq.foncee{background:var(--case-foncee);}
+  .sq.dernier::after{
+    content:"";position:absolute;inset:0;
+    background:var(--jaune);opacity:.34;pointer-events:none;
+  }
+  .sq.select::after{
+    content:"";position:absolute;inset:0;
+    box-shadow:inset 0 0 0 3px var(--jaune);pointer-events:none;
+  }
+  .sq.echec::after{
+    content:"";position:absolute;inset:0;
+    box-shadow:inset 0 0 0 3px #b03a2e;pointer-events:none;
+  }
+  .cible{
+    position:absolute;width:26%;height:26%;border-radius:50%;
+    background:var(--noir);opacity:.20;pointer-events:none;
+  }
+  .cible.prise{
+    width:86%;height:86%;background:transparent;border-radius:50%;
+    box-shadow:inset 0 0 0 4px rgba(17,17,17,.22);opacity:1;
+  }
+  .piece{
+    font-size:calc(var(--sq) * .78);
+    line-height:1;
+    pointer-events:none;
+    filter:drop-shadow(0 2px 2px rgba(17,17,17,.30));
+  }
+  .piece.b{color:#FFFFFF;-webkit-text-stroke:calc(var(--sq)*.022) var(--noir);}
+  .piece.n{color:var(--noir);}
+  .fantome{
+    position:fixed;z-index:60;pointer-events:none;
+    display:flex;align-items:center;justify-content:center;
+    transform:translate(-50%,-50%);
+  }
+  .fantome .piece{font-size:calc(var(--sq) * .92);filter:drop-shadow(0 8px 10px rgba(17,17,17,.35));}
+
+  .coords{position:absolute;color:var(--gris);font-size:9px;letter-spacing:1px;}
+  .coords.fichiers{left:0;right:0;bottom:-15px;display:grid;grid-template-columns:repeat(8,var(--sq));text-align:center;}
+  .coords.rangs{top:0;bottom:0;left:-14px;display:grid;grid-template-rows:repeat(8,var(--sq));align-items:center;text-align:right;}
+
+  /* ---------- panneau ---------- */
+  .panneau{
+    flex:0 0 340px;
+    border-left:1px solid var(--filet);
+    display:flex;flex-direction:column;min-height:0;background:#FFFDF9;
+  }
+  @media (max-aspect-ratio: 1/1){
+    .panneau{flex:0 0 auto;border-left:none;border-top:1px solid var(--filet);max-height:44%;}
+  }
+
+  .bandeau{
+    background:var(--noir);color:#fff;
+    padding:9px 14px;display:flex;align-items:center;gap:9px;
+    font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  }
+  .bandeau i{width:9px;height:9px;background:var(--jaune);display:block;flex:0 0 auto;}
+
+  .bloc{padding:14px;border-bottom:1px solid var(--filet);}
+  .label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--gris);margin-bottom:8px;}
+
+  .niveaux{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .niveaux button{
+    font:inherit;font-size:11px;font-weight:600;
+    padding:9px 4px;border:1px solid var(--filet);background:#fff;color:var(--noir);
+    cursor:pointer;
+  }
+  .niveaux button[aria-pressed="true"]{background:var(--jaune);border-color:var(--noir);}
+
+  .statut{font-size:13px;line-height:1.45;}
+  .statut strong{font-weight:700;}
+  .statut .trait{color:var(--gris);font-size:11px;letter-spacing:1px;text-transform:uppercase;display:block;margin-top:3px;}
+
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;border-bottom:1px solid var(--filet);}
+  button.act{
+    font:inherit;font-size:12px;font-weight:600;padding:11px 8px;
+    border:1px solid var(--noir);background:#fff;color:var(--noir);cursor:pointer;
+  }
+  button.act.primaire{background:var(--noir);color:#fff;grid-column:1 / -1;}
+  button.act.primaire:disabled{background:#DDD9D0;color:#8b877f;border-color:#DDD9D0;}
+  button.act:disabled{opacity:.4;cursor:default;}
+
+  .coach{flex:1 1 auto;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch;}
+  .coach p{margin:0 0 10px;font-size:13.5px;line-height:1.55;}
+  .coach .vide{color:var(--gris);font-size:12.5px;line-height:1.5;}
+  .coach .chiffres{
+    font-size:11px;color:var(--gris);letter-spacing:.3px;
+    border-left:2px solid var(--jaune);padding-left:9px;margin:0 0 12px;line-height:1.5;
+  }
+  .coach .erreur{border-left:2px solid #b03a2e;padding-left:9px;font-size:12.5px;line-height:1.5;color:#8a2f26;}
+
+  .coups{padding:10px 14px 14px;font-size:11.5px;color:var(--gris);line-height:1.7;word-spacing:2px;}
+  .coups b{color:var(--noir);font-weight:600;}
+
+  footer{
+    flex:0 0 auto;border-top:2px solid var(--jaune);
+    padding:7px 16px;display:flex;justify-content:space-between;align-items:center;
+    font-size:9px;color:var(--gris);letter-spacing:.4px;
+  }
+  footer .maj{font-size:10px;font-weight:700;color:var(--noir);letter-spacing:0;}
+
+  /* ---------- promotion ---------- */
+  .voile{
+    position:fixed;inset:0;z-index:80;background:rgba(17,17,17,.55);
+    display:none;align-items:center;justify-content:center;
+  }
+  .voile.on{display:flex;}
+  .promo{background:var(--creme);border:1px solid var(--noir);padding:18px 20px;max-width:320px;}
+  .promo h3{margin:0 0 4px;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;}
+  .promo p{margin:0 0 14px;font-size:12px;color:var(--gris);}
+  .promo .choix{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .promo .choix button{
+    font-size:34px;line-height:1;padding:10px 0;background:#fff;
+    border:1px solid var(--filet);cursor:pointer;
+  }
+  .promo .choix button:hover{border-color:var(--noir);background:var(--jaune);}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important;transition:none !important;} }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="marque">
+      <span class="pastille"></span>
+      <span class="nom">dune</span>
+      <span class="sous">échecs · v0</span>
+    </div>
+    <div class="etat-moteur"><span class="led charge" id="led"></span><span id="etatMoteur">Chargement du moteur</span></div>
+  </header>
+
+  <main>
+    <div class="zone-plateau" id="zonePlateau">
+      <div class="plateau-wrap">
+        <div class="board" id="board"></div>
+        <div class="coords rangs" id="coordRangs"></div>
+        <div class="coords fichiers" id="coordFichiers"></div>
+      </div>
+    </div>
+
+    <aside class="panneau">
+      <div class="bandeau"><i></i><span>Partie</span></div>
+
+      <div class="bloc">
+        <div class="label">Niveau du moteur</div>
+        <div class="niveaux" id="niveaux">
+          <button data-n="0" aria-pressed="false">Découverte</button>
+          <button data-n="1" aria-pressed="true">Facile</button>
+          <button data-n="2" aria-pressed="false">Moyen</button>
+          <button data-n="3" aria-pressed="false">Costaud</button>
+        </div>
+      </div>
+
+      <div class="bloc">
+        <div class="statut" id="statut">
+          <strong>Préparation de la partie…</strong>
+          <span class="trait">Tu joues les noirs</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="act primaire" id="btnExplique" disabled>Explique-moi ce coup</button>
+        <button class="act" id="btnReprendre" disabled>Reprendre mon coup</button>
+        <button class="act" id="btnNouvelle">Nouvelle partie</button>
+      </div>
+
+      <div class="bandeau"><i></i><span>Le coach</span></div>
+      <div class="coach" id="coach">
+        <p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ». Je regarde ce que le moteur en pense et je te dis ce qui s'est passé — sans te donner le coup suivant.</p>
+      </div>
+
+      <div class="coups" id="coups"></div>
+    </aside>
+  </main>
+
+  <footer>
+    <span>SARL dune architecture + design · Nîmes</span>
+    <span class="maj">MAJ 15/08/2026</span>
+  </footer>
+</div>
+
+<div class="voile" id="voile">
+  <div class="promo">
+    <h3>Promotion</h3>
+    <p>Ton pion atteint la dernière rangée. Choisis la pièce.</p>
+    <div class="choix" id="choixPromo"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   dune · échecs — v0
+   Répartition des rôles :
+   - chess.js  : légalité des coups (aucun coup illégal possible)
+   - Stockfish : adversaire + évaluation chiffrée
+   - Claude    : commentaire pédagogique uniquement
+   ============================================================ */
+
+const GLYPHES = { k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟' };
+const NOMS_FR = { k:'roi', q:'dame', r:'tour', b:'fou', n:'cavalier', p:'pion' };
+
+const NIVEAUX = [
+  { nom:'Découverte', skill:0,  movetime:200,  depth:4  },
+  { nom:'Facile',     skill:3,  movetime:350,  depth:6  },
+  { nom:'Moyen',      skill:9,  movetime:700,  depth:10 },
+  { nom:'Costaud',    skill:15, movetime:1200, depth:14 }
+];
+
+let niveau = 1;
+let game = null;
+let selection = null;        // case de départ sélectionnée
+let coupsLegaux = [];        // coups légaux depuis la sélection
+let dernierCoup = null;      // {from,to}
+let moteurPense = false;
+let partieFinie = false;
+
+const $ = id => document.getElementById(id);
+
+/* ------------------------------------------------------------
+   1. Moteur Stockfish — chargé depuis le CDN dans un worker
+   ------------------------------------------------------------ */
+const Moteur = (() => {
+  const SOURCES = [
+    'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.min.js'
+  ];
+  let worker = null, pret = false, ecouteurs = [], file = Promise.resolve(), journal = [];
+
+  function nettoyer(){
+    try{ if(worker) worker.terminate(); }catch(e){}
+    worker = null; ecouteurs = []; pret = false; file = Promise.resolve();
+  }
+
+  function essayer(w, delai){
+    return new Promise((res, rej) => {
+      let fini = false;
+      worker = w;
+      w.onmessage = (e) => {
+        const ligne = typeof e.data === 'string' ? e.data : (e.data && e.data.data) || '';
+        ecouteurs.slice().forEach(f => f(ligne));
+      };
+      w.onerror = (ev) => { if(!fini){ fini = true; rej(new Error(ev && ev.message ? ev.message : 'worker refusé')); } };
+      const t = setTimeout(() => { if(!fini){ fini = true; rej(new Error('pas de réponse')); } }, delai);
+      attendre(l => l.indexOf('uciok') > -1)
+        .then(() => attendre(l => l.indexOf('readyok') > -1, 'isready'))
+        .then(() => { if(fini) return; fini = true; clearTimeout(t); pret = true; res(); });
+      w.postMessage('uci');
+    });
+  }
+
+  // Voie 1 : le worker va chercher le moteur lui-même (importScripts).
+  function voie1(url){
+    const amorce = "importScripts('" + url + "');";
+    return essayer(new Worker(URL.createObjectURL(new Blob([amorce], {type:'application/javascript'}))), 30000);
+  }
+
+  // Voie 2 : on télécharge le code, puis on fabrique le worker à partir du code.
+  async function voie2(url){
+    const r = await fetch(url, { mode:'cors' });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const code = await r.text();
+    if(code.length < 10000) throw new Error('fichier incomplet');
+    return essayer(new Worker(URL.createObjectURL(new Blob([code], {type:'application/javascript'}))), 30000);
+  }
+
+  async function demarrer(onEtape){
+    journal = [];
+    for(const url of SOURCES){
+      const nom = url.split('/').pop();
+      try{ onEtape && onEtape('Chargement du moteur · voie 1'); await voie1(url); return 'voie 1'; }
+      catch(e){ journal.push('voie 1 (' + nom + ') : ' + e.message); nettoyer(); }
+      try{ onEtape && onEtape('Chargement du moteur · voie 2'); await voie2(url); return 'voie 2'; }
+      catch(e){ journal.push('voie 2 (' + nom + ') : ' + e.message); nettoyer(); }
+    }
+    throw new Error(journal.join(' · '));
+  }
+
+  function attendre(test, commande){
+    return new Promise((res) => {
+      const f = (ligne) => { if(test(ligne)){ ecouteurs = ecouteurs.filter(x => x !== f); res(ligne); } };
+      ecouteurs.push(f);
+      if(commande && worker) worker.postMessage(commande);
+    });
+  }
+
+  // Une seule tâche à la fois : le moteur est mono-instance.
+  function enfiler(tache){ file = file.then(tache, tache); return file; }
+
+  function chercher(fen, {skill = 20, movetime = 800, depth = 12} = {}){
+    return enfiler(() => new Promise((res) => {
+      if(!pret){ res(null); return; }
+      let score = null, mat = null, pv = '';
+      const f = (ligne) => {
+        if(ligne.indexOf('info ') === 0 && ligne.indexOf(' pv ') > -1){
+          const mCp = ligne.match(/score cp (-?\d+)/);
+          const mMate = ligne.match(/score mate (-?\d+)/);
+          if(mCp){ score = parseInt(mCp[1],10); mat = null; }
+          if(mMate){ mat = parseInt(mMate[1],10); score = null; }
+          const mPv = ligne.match(/ pv (.+)$/);
+          if(mPv) pv = mPv[1];
+        }
+        if(ligne.indexOf('bestmove') === 0){
+          ecouteurs = ecouteurs.filter(x => x !== f);
+          const best = ligne.split(' ')[1];
+          res({ best: (best && best !== '(none)') ? best : null, score, mat, pv });
+        }
+      };
+      ecouteurs.push(f);
+      worker.postMessage('setoption name Skill Level value ' + skill);
+      worker.postMessage('position fen ' + fen);
+      worker.postMessage('go movetime ' + movetime + ' depth ' + depth);
+    }));
+  }
+
+  return { demarrer, chercher, estPret: () => pret };
+})();
+
+/* ------------------------------------------------------------
+   2. Plateau — rendu
+   ------------------------------------------------------------ */
+const FICHIERS = ['a','b','c','d','e','f','g','h'];
+
+function caseDe(col, rang){ return FICHIERS[col] + (8 - rang); }
+
+function dessiner(){
+  const board = $('board');
+  board.innerHTML = '';
+  const plateau = game.board();
+  const roiEnEchec = game.in_check() ? trouverRoi(game.turn()) : null;
+
+  // Vue depuis les noirs : rangée 1 en haut, colonne h à gauche
+  for(let vr = 0; vr < 8; vr++){
+    for(let vc = 0; vc < 8; vc++){
+      const r = 7 - vr, c = 7 - vc;
+      const nom = caseDe(c, r);
+      const d = document.createElement('div');
+      d.className = 'sq ' + ((r + c) % 2 === 0 ? 'claire' : 'foncee');
+      d.dataset.case = nom;
+
+      if(dernierCoup && (dernierCoup.from === nom || dernierCoup.to === nom)) d.classList.add('dernier');
+      if(selection === nom) d.classList.add('select');
+      if(roiEnEchec === nom) d.classList.add('echec');
+
+      const p = plateau[r][c];
+      if(p){
+        const s = document.createElement('span');
+        s.className = 'piece ' + (p.color === 'w' ? 'b' : 'n');
+        s.textContent = GLYPHES[p.type];
+        d.appendChild(s);
+      }
+
+      const cible = coupsLegaux.find(m => m.to === nom);
+      if(cible){
+        const pt = document.createElement('span');
+        pt.className = 'cible' + (cible.captured ? ' prise' : '');
+        d.appendChild(pt);
+      }
+
+      board.appendChild(d);
+    }
+  }
+  majCoups();
+}
+
+function trouverRoi(couleur){
+  const plateau = game.board();
+  for(let r = 0; r < 8; r++) for(let c = 0; c < 8; c++){
+    const p = plateau[r][c];
+    if(p && p.type === 'k' && p.color === couleur) return caseDe(c, r);
+  }
+  return null;
+}
+
+function dessinerCoords(){
+  $('coordFichiers').innerHTML = FICHIERS.slice().reverse().map(f => '<span>' + f + '</span>').join('');
+  $('coordRangs').innerHTML = [1,2,3,4,5,6,7,8].map(r => '<span>' + r + '</span>').join('');
+}
+
+function ajusterTaille(){
+  const z = $('zonePlateau');
+  const dispo = Math.min(z.clientWidth - 28, z.clientHeight - 28);
+  const sq = Math.max(30, Math.floor(dispo / 8));
+  document.documentElement.style.setProperty('--sq', sq + 'px');
+}
+
+/* ------------------------------------------------------------
+   3. Interaction — tap-to-move + glisser tactile
+   ------------------------------------------------------------ */
+let drag = null;
+
+function estAMoi(nom){
+  const p = game.get(nom);
+  return p && p.color === 'b';
+}
+
+function selectionner(nom){
+  selection = nom;
+  coupsLegaux = game.moves({ square: nom, verbose: true });
+  dessiner();
+}
+
+function deselectionner(){
+  selection = null; coupsLegaux = []; dessiner();
+}
+
+function caseSousPoint(x, y){
+  const el = document.elementFromPoint(x, y);
+  if(!el) return null;
+  const sq = el.closest ? el.closest('.sq') : null;
+  return sq ? sq.dataset.case : null;
+}
+
+$('board').addEventListener('pointerdown', (e) => {
+  if(partieFinie || moteurPense || game.turn() !== 'b') return;
+  const sq = e.target.closest('.sq');
+  if(!sq) return;
+  const nom = sq.dataset.case;
+
+  // Destination d'un coup déjà amorcé
+  if(selection && coupsLegaux.some(m => m.to === nom)){
+    jouerHumain(selection, nom);
+    return;
+  }
+  if(!estAMoi(nom)){ deselectionner(); return; }
+
+  selectionner(nom);
+  drag = { depart:nom, x0:e.clientX, y0:e.clientY, actif:false, fantome:null };
+  $('board').setPointerCapture(e.pointerId);
+}, {passive:true});
+
+$('board').addEventListener('pointermove', (e) => {
+  if(!drag) return;
+  const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+  if(!drag.actif && Math.hypot(dx, dy) < 8) return;
+
+  if(!drag.actif){
+    drag.actif = true;
+    const p = game.get(drag.depart);
+    const f = document.createElement('div');
+    f.className = 'fantome';
+    f.innerHTML = '<span class="piece ' + (p.color === 'w' ? 'b' : 'n') + '">' + GLYPHES[p.type] + '</span>';
+    document.body.appendChild(f);
+    drag.fantome = f;
+    const orig = document.querySelector('.sq[data-case="' + drag.depart + '"] .piece');
+    if(orig) orig.style.opacity = '.25';
+  }
+  drag.fantome.style.left = e.clientX + 'px';
+  drag.fantome.style.top  = e.clientY + 'px';
+}, {passive:true});
+
+function finDrag(e){
+  if(!drag) return;
+  const d = drag; drag = null;
+  if(d.fantome) d.fantome.remove();
+  if(!d.actif) return;                     // simple tap : la sélection reste
+  const cible = caseSousPoint(e.clientX, e.clientY);
+  if(cible && coupsLegaux.some(m => m.to === cible)) jouerHumain(d.depart, cible);
+  else dessiner();
+}
+$('board').addEventListener('pointerup', finDrag, {passive:true});
+$('board').addEventListener('pointercancel', () => { if(drag && drag.fantome) drag.fantome.remove(); drag = null; dessiner(); }, {passive:true});
+
+/* ------------------------------------------------------------
+   4. Coups
+   ------------------------------------------------------------ */
+function jouerHumain(from, to){
+  const candidats = coupsLegaux.filter(m => m.to === to);
+  const promo = candidats.find(m => m.promotion);
+  if(promo){
+    demanderPromotion((piece) => appliquer(from, to, piece));
+  }else{
+    appliquer(from, to, null);
+  }
+}
+
+function appliquer(from, to, promotion){
+  const coup = game.move({ from, to, promotion: promotion || 'q' });
+  if(!coup) return;
+  dernierCoup = { from, to };
+  selection = null; coupsLegaux = [];
+  dessiner();
+  if(verifierFin()) return;
+  majStatut('<strong>Le moteur réfléchit…</strong><span class="trait">' + NIVEAUX[niveau].nom + '</span>');
+  setTimeout(coupDuMoteur, 120);
+}
+
+async function coupDuMoteur(){
+  if(!Moteur.estPret()){
+    majStatut('<strong>Le moteur n\'est pas disponible.</strong><span class="trait">Vérifie la connexion, puis relance une partie</span>');
+    return;
+  }
+  moteurPense = true;
+  majBoutons();
+  const cfg = NIVEAUX[niveau];
+  const res = await Moteur.chercher(game.fen(), { skill:cfg.skill, movetime:cfg.movetime, depth:cfg.depth });
+  moteurPense = false;
+  if(!res || !res.best){ verifierFin(); majBoutons(); return; }
+
+  const from = res.best.slice(0,2), to = res.best.slice(2,4), pr = res.best.slice(4,5) || undefined;
+  game.move({ from, to, promotion: pr || 'q' });
+  dernierCoup = { from, to };
+  dessiner();
+  if(verifierFin()) return;
+  majStatut('<strong>À toi de jouer.</strong><span class="trait">Tu joues les noirs</span>');
+  majBoutons();
+}
+
+// Les blancs sont au moteur : il ouvre la partie.
+function ouvertureDuMoteur(){
+  if(!Moteur.estPret() || partieFinie) return;
+  if(game.history().length > 0) return;
+  majStatut('<strong>Le moteur ouvre la partie…</strong><span class="trait">' + NIVEAUX[niveau].nom + '</span>');
+  setTimeout(coupDuMoteur, 200);
+}
+
+function verifierFin(){
+  if(!game.game_over()) return false;
+  partieFinie = true;
+  let txt;
+  if(game.in_checkmate()) txt = game.turn() === 'b'
+      ? '<strong>Échec et mat — le moteur gagne.</strong>'
+      : '<strong>Échec et mat — tu gagnes.</strong>';
+  else if(game.in_stalemate()) txt = '<strong>Pat — partie nulle.</strong>';
+  else if(game.insufficient_material()) txt = '<strong>Nulle — matériel insuffisant.</strong>';
+  else if(game.in_threefold_repetition()) txt = '<strong>Nulle — triple répétition.</strong>';
+  else txt = '<strong>Partie nulle.</strong>';
+  majStatut(txt + '<span class="trait">Partie terminée</span>');
+  majBoutons();
+  return true;
+}
+
+/* ------------------------------------------------------------
+   5. Promotion
+   ------------------------------------------------------------ */
+function demanderPromotion(suite){
+  const box = $('choixPromo');
+  box.innerHTML = '';
+  ['q','r','b','n'].forEach(t => {
+    const b = document.createElement('button');
+    b.innerHTML = '<span class="piece n" style="font-size:34px">' + GLYPHES[t] + '</span>';
+    b.title = NOMS_FR[t];
+    b.onclick = () => { $('voile').classList.remove('on'); suite(t); };
+    box.appendChild(b);
+  });
+  $('voile').classList.add('on');
+}
+
+/* ------------------------------------------------------------
+   6. Le coach — Claude commente le dernier demi-coup
+   ------------------------------------------------------------ */
+async function expliquer(){
+  const hist = game.history({ verbose:true });
+  if(!hist.length) return;
+
+  const btn = $('btnExplique');
+  btn.disabled = true; btn.textContent = 'J\'analyse la position…';
+  const coach = $('coach');
+  coach.innerHTML = '<p class="vide">Le moteur chiffre la position, puis je rédige…</p>';
+
+  const dernier = hist[hist.length - 1];
+  const fenApres = game.fen();
+
+  // Position avant le dernier coup
+  const avant = new Chess();
+  hist.slice(0, -1).forEach(m => avant.move(m.san));
+  const fenAvant = avant.fen();
+
+  let bloc = null;
+  try{
+    const aAvant = await Moteur.chercher(fenAvant, { skill:20, movetime:900, depth:14 });
+    const aApres = await Moteur.chercher(fenApres, { skill:20, movetime:900, depth:14 });
+
+    // Normalisation des scores du point de vue du joueur (les noirs)
+    const norm = (r, trait) => {
+      if(!r) return null;
+      if(r.mat !== null && r.mat !== undefined) return { mat: (trait === 'b' ? r.mat : -r.mat) };
+      if(r.score === null || r.score === undefined) return null;
+      return { cp: (trait === 'b' ? r.score : -r.score) };
+    };
+    const evAvant = norm(aAvant, avant.turn());
+    const evApres = norm(aApres, game.turn());
+
+    let alternative = null;
+    if(aAvant && aAvant.best){
+      const tmp = new Chess(fenAvant);
+      const m = tmp.move({ from:aAvant.best.slice(0,2), to:aAvant.best.slice(2,4), promotion:aAvant.best.slice(4,5) || 'q' });
+      if(m) alternative = m.san;
+    }
+    bloc = { evAvant, evApres, alternative };
+  }catch(e){ bloc = null; }
+
+  const fmt = (ev) => {
+    if(!ev) return 'non chiffrée';
+    if(ev.mat !== undefined) return 'mat en ' + Math.abs(ev.mat) + (ev.mat > 0 ? ' à ton avantage' : ' pour le moteur');
+    const p = (ev.cp / 100).toFixed(2);
+    return (ev.cp > 0 ? '+' : '') + p + (ev.cp > 0 ? ' à ton avantage' : ' pour le moteur');
+  };
+
+  let chiffres = '';
+  if(bloc){
+    chiffres = 'Coup joué : <b>' + dernier.san + '</b> par les ' + (dernier.color === 'w' ? 'blancs' : 'noirs') + '<br>'
+             + 'Évaluation avant : ' + fmt(bloc.evAvant) + '<br>'
+             + 'Évaluation après : ' + fmt(bloc.evApres)
+             + (bloc.alternative ? '<br>Le moteur préférait : <b>' + bloc.alternative + '</b>' : '');
+  }
+
+  const contexte = [
+    'Position de départ standard, partie en cours.',
+    'Le joueur humain a les noirs, le moteur a les blancs.',
+    'Coups joués (PGN) : ' + (game.pgn() || '(aucun)'),
+    'Dernier demi-coup : ' + dernier.san + ' joué par les ' + (dernier.color === 'w' ? 'blancs (le moteur)' : 'noirs (le joueur)') + '.',
+    'FEN après ce coup : ' + fenApres,
+    'Convention des évaluations ci-dessous : un score positif est à l\'avantage des noirs (le joueur), un score négatif à l\'avantage des blancs (le moteur).',
+    bloc ? ('Évaluation Stockfish avant le coup : ' + fmt(bloc.evAvant)) : '',
+    bloc ? ('Évaluation Stockfish après le coup : ' + fmt(bloc.evApres)) : '',
+    (bloc && bloc.alternative) ? ('Coup préféré par Stockfish à la place : ' + bloc.alternative) : '',
+    game.in_check() ? 'Le camp au trait est en échec.' : ''
+  ].filter(Boolean).join('\n');
+
+  const consigne =
+    "Tu es coach d'échecs. Tu t'adresses à Jérôme, joueur occasionnel, en français, en le tutoyant. " +
+    "Ton direct, pragmatique, zéro flatterie, zéro jargon inutile. " +
+    "Explique le dernier demi-coup indiqué : ce qu'il fait concrètement sur l'échiquier (pièce, case, ce qu'il attaque, défend, ouvre ou affaiblit) et pourquoi l'évaluation a bougé ou non. " +
+    "Appuie-toi uniquement sur les données fournies : ne calcule pas de variantes longues, n'invente aucune pièce ni aucune case. " +
+    "Ne conseille jamais le coup à jouer ensuite ; si le coup était imprécis, dis-le et nomme l'idée que le moteur préférait, sans dérouler la suite. " +
+    "3 courts paragraphes maximum, 160 mots maximum au total, pas de titres, pas de listes.\n\n" +
+    "Données de la position :\n" + contexte;
+
+  try{
+    const rep = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        messages:[{ role:'user', content: consigne }]
+      })
+    });
+    if(!rep.ok) throw new Error('HTTP ' + rep.status);
+    const data = await rep.json();
+    const texte = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    coach.innerHTML = (chiffres ? '<p class="chiffres">' + chiffres + '</p>' : '')
+      + texte.split(/\n+/).filter(Boolean).map(p => '<p>' + p + '</p>').join('');
+  }catch(e){
+    coach.innerHTML = (chiffres ? '<p class="chiffres">' + chiffres + '</p>' : '')
+      + '<p class="erreur">Le commentaire écrit n\'est pas disponible ici : il a besoin d\'être ouvert dans une session Claude ou sur la version déployée. Les chiffres du moteur ci-dessus restent valables.</p>';
+  }
+
+  btn.textContent = 'Explique-moi ce coup';
+  majBoutons();
+}
+
+/* ------------------------------------------------------------
+   7. Interface — statut, boutons, liste des coups
+   ------------------------------------------------------------ */
+function majStatut(html){ $('statut').innerHTML = html; }
+
+function majBoutons(){
+  const hist = game.history();
+  $('btnExplique').disabled  = moteurPense || hist.length === 0;
+  $('btnReprendre').disabled = moteurPense || hist.length < 3 || partieFinie;
+}
+
+function majCoups(){
+  const h = game.history();
+  if(!h.length){ $('coups').innerHTML = ''; return; }
+  let out = [];
+  for(let i = 0; i < h.length; i += 2){
+    out.push('<b>' + (i/2 + 1) + '.</b> ' + h[i] + (h[i+1] ? ' ' + h[i+1] : ''));
+  }
+  $('coups').innerHTML = out.join('&nbsp; ');
+}
+
+$('niveaux').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if(!b) return;
+  niveau = parseInt(b.dataset.n, 10);
+  [...$('niveaux').children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+});
+
+$('btnNouvelle').onclick = () => {
+  game = new Chess();
+  selection = null; coupsLegaux = []; dernierCoup = null; partieFinie = false;
+  $('coach').innerHTML = '<p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ».</p>';
+  dessiner(); majBoutons();
+  ouvertureDuMoteur();
+};
+
+$('btnReprendre').onclick = () => {
+  if(moteurPense) return;
+  game.undo();                        // coup du moteur
+  if(game.turn() !== 'b') game.undo(); // ton coup
+  const h = game.history({ verbose:true });
+  dernierCoup = h.length ? { from:h[h.length-1].from, to:h[h.length-1].to } : null;
+  selection = null; coupsLegaux = []; partieFinie = false;
+  majStatut('<strong>À toi de jouer.</strong><span class="trait">Coup repris</span>');
+  dessiner(); majBoutons();
+};
+
+$('btnExplique').onclick = expliquer;
+
+/* ------------------------------------------------------------
+   8. Démarrage
+   ------------------------------------------------------------ */
+function lancerMoteur(){
+  $('led').className = 'led charge';
+  $('etatMoteur').textContent = 'Chargement du moteur';
+  majStatut('<strong>Chargement du moteur…</strong><span class="trait">Une dizaine de secondes au premier lancement</span>');
+
+  Moteur.demarrer((etape) => { $('etatMoteur').textContent = etape.replace('Chargement du moteur · ', 'Moteur · '); })
+    .then((voie) => {
+      $('led').className = 'led ok';
+      $('etatMoteur').textContent = 'Moteur prêt';
+      ouvertureDuMoteur();
+    })
+    .catch((e) => {
+      $('led').className = 'led ko';
+      $('etatMoteur').textContent = 'Moteur indisponible';
+      const bloque = /worker/i.test(String(e.message || e));
+      majStatut('<strong>Le moteur n\'a pas démarré.</strong>'
+              + '<span class="trait">Tu joues les noirs : sans lui, personne n\'ouvre la partie</span>');
+      $('coach').innerHTML =
+        (bloque
+          ? '<p class="erreur">Cet aperçu interdit les moteurs de calcul en tâche de fond : Stockfish ne peut pas s\'y lancer. '
+            + 'Le même fichier fonctionne une fois mis en ligne (GitHub Pages / Railway).</p>'
+          : '<p class="erreur">Stockfish n\'a pas pu être chargé. Appuie sur « Relancer le moteur » ; si ça bloque encore, envoie-moi la ligne de diagnostic.</p>')
+        + '<p class="chiffres">Diagnostic : ' + String(e.message || e).replace(/</g,'&lt;') + '</p>'
+        + '<p><button class="act" id="btnRelance">Relancer le moteur</button></p>';
+      const b = $('btnRelance');
+      if(b) b.onclick = lancerMoteur;
+    });
+}
+
+function init(){
+  if(typeof Chess === 'undefined'){
+    majStatut('<strong>La bibliothèque de règles n\'a pas pu être chargée.</strong><span class="trait">Connexion internet requise au premier lancement</span>');
+    return;
+  }
+  game = new Chess();
+  dessinerCoords();
+  ajusterTaille();
+  dessiner();
+  majBoutons();
+  window.addEventListener('resize', () => { ajusterTaille(); });
+  window.addEventListener('orientationchange', () => setTimeout(ajusterTaille, 250));
+  lancerMoteur();
+}
+init();
+</script>
+</body>
+</html>
