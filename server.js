@@ -18,7 +18,13 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const CLE = process.env.ANTHROPIC_API_KEY;
 const BDD_URL = process.env.DATABASE_URL;
-const CODE_ACCES = (process.env.CODE_ACCES || 'dune64').toLowerCase();
+function normaliserCode(c){
+  return String(c || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // accents éventuels du correcteur
+    .replace(/\s+/g, '')                                // espaces, où qu'ils soient
+    .toLowerCase();
+}
+const CODE_ACCES = normaliserCode(process.env.CODE_ACCES || 'dune64');
 
 /* ---------- Base de données (Postgres via pg) ---------- */
 let pool = null;
@@ -136,12 +142,18 @@ const server = http.createServer(async (req, res) => {
   if(req.method === 'GET' && (req.url === '/' || req.url === '/index.html' || req.url.startsWith('/?'))){
     return servirFichier(res, 'index.html', 'text/html; charset=utf-8');
   }
+  if(req.method === 'GET' && req.url === '/apple-touch-icon.png'){
+    return servirFichier(res, 'apple-touch-icon.png', 'image/png');
+  }
+  if(req.method === 'GET' && req.url === '/icon-512.png'){
+    return servirFichier(res, 'icon-512.png', 'image/png');
+  }
 
   /* --- Code d'accès famille --- */
   if(req.method === 'POST' && req.url === '/api/entree'){
     try{
       const { code } = await lireCorps(req);
-      if(typeof code !== 'string' || code.trim().toLowerCase() !== CODE_ACCES){
+      if(typeof code !== 'string' || normaliserCode(code) !== CODE_ACCES){
         repondre(res, 403, { erreur: 'Code incorrect.' });
         return;
       }
