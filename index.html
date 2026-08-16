@@ -318,6 +318,8 @@
         <button class="act primaire" id="btnExplique" disabled>Explique-moi ce coup</button>
         <button class="act" id="btnReprendre" disabled>Reprendre mon coup</button>
         <button class="act" id="btnNouvelle">Nouvelle partie</button>
+        <button class="act" id="btnDebrief" disabled>Débrief de la partie</button>
+        <button class="act" id="btnParties">Mes parties</button>
       </div>
 
       <div class="bandeau"><i></i><span>Le coach</span></div>
@@ -709,20 +711,105 @@ function animerCoup(from, to, dureeMs){
   });
 }
 
+let resultatPartie = null;
+
 function verifierFin(){
   if(!game.game_over()) return false;
   partieFinie = true;
   let txt;
-  if(game.in_checkmate()) txt = game.turn() === 'b'
-      ? '<strong>Échec et mat — j\'ai gagné.</strong>'
-      : '<strong>Échec et mat — tu m\'as battu.</strong>';
-  else if(game.in_stalemate()) txt = '<strong>Pat — partie nulle.</strong>';
-  else if(game.insufficient_material()) txt = '<strong>Nulle — matériel insuffisant.</strong>';
-  else if(game.in_threefold_repetition()) txt = '<strong>Nulle — triple répétition.</strong>';
-  else txt = '<strong>Partie nulle.</strong>';
-  majStatut(txt + '<span class="trait">Partie terminée</span>');
+  if(game.in_checkmate()){
+    if(game.turn() === 'b'){ txt = '<strong>Échec et mat — j\'ai gagné.</strong>'; resultatPartie = 'Défaite'; }
+    else { txt = '<strong>Échec et mat — tu m\'as battu.</strong>'; resultatPartie = 'Victoire'; }
+  }
+  else if(game.in_stalemate()){ txt = '<strong>Pat — partie nulle.</strong>'; resultatPartie = 'Nulle'; }
+  else if(game.insufficient_material()){ txt = '<strong>Nulle — matériel insuffisant.</strong>'; resultatPartie = 'Nulle'; }
+  else if(game.in_threefold_repetition()){ txt = '<strong>Nulle — triple répétition.</strong>'; resultatPartie = 'Nulle'; }
+  else { txt = '<strong>Partie nulle.</strong>'; resultatPartie = 'Nulle'; }
+  majStatut(txt + '<span class="trait">Partie terminée · débrief disponible</span>');
+  enregistrerPartie();
   majBoutons();
   return true;
+}
+
+async function enregistrerPartie(){
+  try{
+    await fetch('/api/partie', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        pgn: game.pgn(),
+        resultat: resultatPartie,
+        niveau: NIVEAUX[niveau].nom,
+        nb_coups: Math.ceil(game.history().length / 2)
+      })
+    });
+  }catch(e){ /* hors Railway : pas de mémoire, pas d'alerte */ }
+}
+
+/* --- Débrief : relecture chiffrée de toute la partie, puis rédaction --- */
+async function faireDebrief(){
+  if(!partieFinie || moteurPense) return;
+  const b = $('btnDebrief');
+  b.disabled = true; b.textContent = 'Je relis la partie…';
+  const coach = $('coach');
+  const hist = game.history();
+  coach.innerHTML = '<p class="vide">Hartwig et moi relisons la partie… (0/' + hist.length + ')</p>';
+
+  const tmp = new Chess();
+  const evals = [];
+  for(let i = 0; i < hist.length; i++){
+    tmp.move(hist[i]);
+    let cp = null;
+    try{
+      const r = await Moteur.chercher(tmp.fen(), { skill:20, movetime:120, depth:10 });
+      if(r){
+        if(r.mat !== null && r.mat !== undefined) cp = ((tmp.turn() === 'b' ? r.mat : -r.mat) > 0 ? 9999 : -9999);
+        else if(r.score !== null && r.score !== undefined) cp = (tmp.turn() === 'b' ? r.score : -r.score);
+      }
+    }catch(e){}
+    evals.push(cp);
+    if(i % 4 === 3) coach.innerHTML = '<p class="vide">Hartwig et moi relisons la partie… (' + (i+1) + '/' + hist.length + ')</p>';
+  }
+
+  try{
+    const rep = await fetch('/api/debrief', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ pgn: game.pgn(), resultat: resultatPartie, niveau: NIVEAUX[niveau].nom, evals })
+    });
+    if(!rep.ok) throw new Error('HTTP ' + rep.status);
+    const data = await rep.json();
+    const texte = (data.texte || '').trim();
+    if(!texte) throw new Error('réponse vide');
+    coach.innerHTML = texte.split(/\n+/).filter(Boolean).map(t => '<p>' + t + '</p>').join('');
+  }catch(e){
+    coach.innerHTML = '<p class="erreur">Le débrief fonctionne sur l\'adresse Railway de l\'appli. Réessaie là-bas, ou dis-moi ce qui bloque.</p>';
+  }
+  b.textContent = 'Débrief de la partie';
+  majBoutons();
+}
+
+/* --- Historique des parties enregistrées --- */
+async function afficherParties(){
+  const coach = $('coach');
+  coach.innerHTML = '<p class="vide">Je vais chercher tes parties…</p>';
+  try{
+    const rep = await fetch('/api/parties');
+    if(!rep.ok) throw new Error('HTTP ' + rep.status);
+    const data = await rep.json();
+    if(!data.parties || !data.parties.length){
+      coach.innerHTML = '<p class="vide">Aucune partie enregistrée pour l\'instant. Termine une partie : elle s\'enregistre toute seule.</p>';
+      return;
+    }
+    const lignes = data.parties.map(p => {
+      const d = new Date(p.date);
+      const quand = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+      return quand + ' — <b>' + p.resultat + '</b> · ' + p.niveau + ' · ' + p.nb_coups + ' coups';
+    });
+    coach.innerHTML = '<p class="chiffres">' + lignes.join('<br>') + '</p>';
+  }catch(e){
+    coach.innerHTML = '<p class="erreur">L\'historique fonctionne sur l\'adresse Railway, une fois la base de données branchée.</p>';
+  }
 }
 
 /* ------------------------------------------------------------
@@ -843,6 +930,7 @@ function majBoutons(){
   const hist = game.history();
   $('btnExplique').disabled  = moteurPense || hist.length === 0;
   $('btnReprendre').disabled = moteurPense || hist.length < 3 || partieFinie;
+  $('btnDebrief').disabled   = moteurPense || !partieFinie;
 }
 
 function majCoups(){
@@ -863,7 +951,7 @@ $('niveaux').addEventListener('click', (e) => {
 
 $('btnNouvelle').onclick = () => {
   game = new Chess();
-  selection = null; coupsLegaux = []; dernierCoup = null; partieFinie = false;
+  selection = null; coupsLegaux = []; dernierCoup = null; partieFinie = false; resultatPartie = null;
   $('coach').innerHTML = '<p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ».</p>';
   dessiner(); majBoutons();
   ouvertureDuMoteur();
@@ -881,6 +969,8 @@ $('btnReprendre').onclick = () => {
 };
 
 $('btnExplique').onclick = expliquer;
+$('btnDebrief').onclick  = faireDebrief;
+$('btnParties').onclick  = afficherParties;
 
 /* ------------------------------------------------------------
    8. Démarrage
