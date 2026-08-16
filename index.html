@@ -118,19 +118,18 @@
     box-shadow:inset 0 0 0 4px var(--jaune);opacity:.9;
   }
   .piece{
-    font-size:calc(var(--sq) * .78);
-    line-height:1;
+    width:82%;height:82%;
     pointer-events:none;
     filter:drop-shadow(0 2px 2px rgba(17,17,17,.30));
   }
-  .piece.b{color:#FFFFFF;-webkit-text-stroke:calc(var(--sq)*.022) var(--noir);}
-  .piece.n{color:var(--noir);-webkit-text-stroke:calc(var(--sq)*.014) rgba(255,255,255,.85);}
+  .piece.b{color:#FFFFFF;--tr:#141414;--sw:4;}
+  .piece.n{color:#161616;--tr:rgba(255,255,255,.92);--sw:2.4;}
   .fantome{
     position:fixed;z-index:60;pointer-events:none;
     display:flex;align-items:center;justify-content:center;
     transform:translate(-50%,-50%);
   }
-  .fantome .piece{font-size:calc(var(--sq) * .92);filter:drop-shadow(0 8px 10px rgba(17,17,17,.35));}
+  .fantome .piece{width:calc(var(--sq) * .95);height:calc(var(--sq) * .95);filter:drop-shadow(0 8px 10px rgba(17,17,17,.35));}
   .glisse{
     position:fixed;z-index:55;pointer-events:none;
     display:flex;align-items:center;justify-content:center;
@@ -211,15 +210,49 @@
   .promo p{margin:0 0 14px;font-size:12px;color:var(--gris);}
   .promo .choix{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
   .promo .choix button{
-    font-size:34px;line-height:1;padding:10px 0;background:#fff;
+    padding:8px 0;background:#fff;display:flex;align-items:center;justify-content:center;
     border:1px solid var(--filet);cursor:pointer;
   }
+  .promo .choix .piece{width:40px;height:40px;}
   .promo .choix button:hover{border-color:var(--noir);background:var(--jaune);}
 
   @media (prefers-reduced-motion: reduce){ *{animation:none !important;transition:none !important;} }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="p_k" viewBox="0 0 100 100">
+  <polygon points="50,5 63,20 50,35 37,20" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="37" y="37" width="26" height="41" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="28" y="78" width="44" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+</symbol>
+<symbol id="p_q" viewBox="0 0 100 100">
+  <circle cx="50" cy="25" r="15.5" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)"/>
+  <rect x="39" y="44" width="22" height="34" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="28" y="78" width="44" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+</symbol>
+<symbol id="p_r" viewBox="0 0 100 100">
+  <rect x="31" y="40" width="38" height="38" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="28" y="78" width="44" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+</symbol>
+<symbol id="p_b" viewBox="0 0 100 100">
+  <g transform="rotate(45 50 53)">
+    <rect x="44.5" y="29" width="11" height="48" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+    <rect x="26" y="47.5" width="48" height="11" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  </g>
+  <rect x="28" y="78" width="44" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+</symbol>
+<symbol id="p_n" viewBox="0 0 100 100">
+  <polygon points="35,22 53,22 53,55 69,55 69,78 35,78" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="28" y="78" width="44" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+</symbol>
+<symbol id="p_p" viewBox="0 0 100 100">
+  <rect x="40" y="59" width="20" height="19" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="32" y="78" width="36" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+</symbol>
+</defs>
+</svg>
 <div class="app">
 
   <header>
@@ -298,8 +331,11 @@
    - Claude    : commentaire pédagogique uniquement
    ============================================================ */
 
-const GLYPHES = { k:'\u265A\uFE0E', q:'\u265B\uFE0E', r:'\u265C\uFE0E', b:'\u265D\uFE0E', n:'\u265E\uFE0E', p:'\u265F\uFE0E' };
 const NOMS_FR = { k:'roi', q:'dame', r:'tour', b:'fou', n:'cavalier', p:'pion' };
+// Pièces "E prime" — hommage Hartwig (Bauhaus 1924) : la forme décrit le mouvement
+function pieceSVG(type, couleurChess){
+  return '<svg class="piece ' + (couleurChess === 'w' ? 'b' : 'n') + '" viewBox="0 0 100 100" aria-hidden="true"><use href="#p_' + type + '"/></svg>';
+}
 
 const NIVEAUX = [
   { nom:'Découverte', skill:0,  movetime:200,  depth:4  },
@@ -445,10 +481,7 @@ function dessiner(){
 
       const p = plateau[r][c];
       if(p){
-        const s = document.createElement('span');
-        s.className = 'piece ' + (p.color === 'w' ? 'b' : 'n');
-        s.textContent = GLYPHES[p.type];
-        d.appendChild(s);
+        d.insertAdjacentHTML('beforeend', pieceSVG(p.type, p.color));
       }
 
       const cible = coupsLegaux.find(m => m.to === nom);
@@ -540,7 +573,7 @@ $('board').addEventListener('pointermove', (e) => {
     const p = game.get(drag.depart);
     const f = document.createElement('div');
     f.className = 'fantome';
-    f.innerHTML = '<span class="piece ' + (p.color === 'w' ? 'b' : 'n') + '">' + GLYPHES[p.type] + '</span>';
+    f.innerHTML = pieceSVG(p.type, p.color);
     document.body.appendChild(f);
     drag.fantome = f;
     const orig = document.querySelector('.sq[data-case="' + drag.depart + '"] .piece');
@@ -677,7 +710,7 @@ function demanderPromotion(suite){
   box.innerHTML = '';
   ['q','r','b','n'].forEach(t => {
     const b = document.createElement('button');
-    b.innerHTML = '<span class="piece n" style="font-size:34px">' + GLYPHES[t] + '</span>';
+    b.innerHTML = pieceSVG(t, 'b');
     b.title = NOMS_FR[t];
     b.onclick = () => { $('voile').classList.remove('on'); suite(t); };
     box.appendChild(b);
