@@ -1,0 +1,12 @@
+{
+  "name": "echecs-dune",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Échecs dune — partenaire de jeu et de coaching, dune architecture + design",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -248,8 +248,8 @@
   <rect x="28" y="78" width="44" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
 </symbol>
 <symbol id="p_p" viewBox="0 0 100 100">
-  <rect x="40" y="59" width="20" height="19" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
-  <rect x="32" y="78" width="36" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="37" y="54" width="26" height="24" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
+  <rect x="30" y="78" width="40" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
 </symbol>
 </defs>
 </svg>
@@ -790,33 +790,21 @@ async function expliquer(){
     game.in_check() ? 'Le camp au trait est en échec.' : ''
   ].filter(Boolean).join('\n');
 
-  const consigne =
-    "Tu es coach d'échecs. Tu t'adresses à Jérôme, joueur occasionnel, en français, en le tutoyant. " +
-    "Ton direct, pragmatique, zéro flatterie, zéro jargon inutile. " +
-    "Explique le dernier demi-coup indiqué : ce qu'il fait concrètement sur l'échiquier (pièce, case, ce qu'il attaque, défend, ouvre ou affaiblit) et pourquoi l'évaluation a bougé ou non. " +
-    "Appuie-toi uniquement sur les données fournies : ne calcule pas de variantes longues, n'invente aucune pièce ni aucune case. " +
-    "Ne conseille jamais le coup à jouer ensuite ; si le coup était imprécis, dis-le et nomme l'idée que le moteur préférait, sans dérouler la suite. " +
-    "3 courts paragraphes maximum, 160 mots maximum au total, pas de titres, pas de listes.\n\n" +
-    "Données de la position :\n" + contexte;
-
   try{
-    const rep = await fetch('https://api.anthropic.com/v1/messages', {
+    const rep = await fetch('/api/coach', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:1000,
-        messages:[{ role:'user', content: consigne }]
-      })
+      body: JSON.stringify({ contexte })
     });
     if(!rep.ok) throw new Error('HTTP ' + rep.status);
     const data = await rep.json();
-    const texte = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    const texte = (data.texte || '').trim();
+    if(!texte) throw new Error('réponse vide');
     coach.innerHTML = (chiffres ? '<p class="chiffres">' + chiffres + '</p>' : '')
       + texte.split(/\n+/).filter(Boolean).map(p => '<p>' + p + '</p>').join('');
   }catch(e){
     coach.innerHTML = (chiffres ? '<p class="chiffres">' + chiffres + '</p>' : '')
-      + '<p class="erreur">Le commentaire écrit n\'est pas disponible ici : il a besoin d\'être ouvert dans une session Claude ou sur la version déployée. Les chiffres du moteur ci-dessus restent valables.</p>';
+      + '<p class="erreur">Le commentaire écrit fonctionne sur l\'adresse Railway de l\'appli (pas sur GitHub Pages). Les chiffres du moteur ci-dessus restent valables.</p>';
   }
 
   btn.textContent = 'Explique-moi ce coup';
