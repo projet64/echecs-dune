@@ -209,6 +209,7 @@
     border-left:2px solid var(--jaune);padding-left:9px;margin:0 0 12px;line-height:1.5;
   }
   .coach .erreur{border-left:2px solid #b03a2e;padding-left:9px;font-size:12.5px;line-height:1.5;color:#8a2f26;}
+  .coach .regle{border-left:2px solid var(--jaune);padding-left:9px;font-size:12.5px;line-height:1.55;color:#1a1a1a;}
 
   .coups{padding:10px 14px 14px;font-size:11.5px;color:var(--gris);line-height:1.7;word-spacing:2px;}
   .coups b{color:var(--noir);font-weight:600;}
@@ -588,7 +589,14 @@ $('board').addEventListener('pointerdown', (e) => {
     jouerHumain(selection, nom);
     return;
   }
-  if(!estAMoi(nom)){ deselectionner(); return; }
+  if(!estAMoi(nom)){
+    if(selection && nom !== selection){
+      const motif = expliquerRefus(selection, nom);
+      if(motif) montrerRefus(motif);
+    }
+    deselectionner();
+    return;
+  }
 
   selectionner(nom);
   drag = { depart:nom, x0:e.clientX, y0:e.clientY, actif:false, fantome:null };
@@ -621,8 +629,15 @@ function finDrag(e){
   if(d.fantome) d.fantome.remove();
   if(!d.actif) return;                     // simple tap : la sélection reste
   const cible = caseSousPoint(e.clientX, e.clientY);
-  if(cible && coupsLegaux.some(m => m.to === cible)) jouerHumain(d.depart, cible);
-  else dessiner();
+  if(cible && coupsLegaux.some(m => m.to === cible)){
+    jouerHumain(d.depart, cible);
+  }else{
+    if(cible && cible !== d.depart){
+      const motif = expliquerRefus(d.depart, cible);
+      if(motif) montrerRefus(motif);
+    }
+    dessiner();
+  }
 }
 $('board').addEventListener('pointerup', finDrag, {passive:true});
 $('board').addEventListener('pointercancel', () => { if(drag && drag.fantome) drag.fantome.remove(); drag = null; dessiner(); }, {passive:true});
@@ -630,6 +645,103 @@ $('board').addEventListener('pointercancel', () => { if(drag && drag.fantome) dr
 /* ------------------------------------------------------------
    4. Coups
    ------------------------------------------------------------ */
+/* --- Pourquoi ce coup est-il interdit ? Diagnostic local, instantané --- */
+function expliquerRefus(from, to){
+  const p = game.get(from);
+  if(!p) return null;
+  const cible = game.get(to);
+  const f1 = from.charCodeAt(0) - 97, r1 = parseInt(from[1], 10);
+  const f2 = to.charCodeAt(0) - 97,   r2 = parseInt(to[1], 10);
+  const df = Math.abs(f2 - f1), dr = Math.abs(r2 - r1);
+
+  if(cible && cible.color === p.color)
+    return 'la case ' + to + ' est occupée par une de tes pièces (' + NOMS_FR[cible.type] + ') — on ne capture jamais son propre camp.';
+
+  // Roque : roi qui saute de deux colonnes
+  if(p.type === 'k' && dr === 0 && df === 2){
+    const droits = game.fen().split(' ')[2];
+    const petit = f2 > f1;
+    if((petit && droits.indexOf('k') === -1) || (!petit && droits.indexOf('q') === -1))
+      return 'ce roque n\'est plus permis : ton roi ou la tour concernée a déjà bougé dans la partie, et ce droit se perd définitivement.';
+    if(game.in_check()) return 'on ne roque jamais quand le roi est en échec.';
+    return 'le roque exige que toutes les cases entre roi et tour soient vides, et que le roi ne parte pas d\'une case attaquée, n\'en traverse pas et n\'y arrive pas.';
+  }
+
+  let glisse = false;
+  if(p.type === 'n'){
+    if(!((df === 1 && dr === 2) || (df === 2 && dr === 1)))
+      return 'le cavalier se déplace en « L » : deux cases dans une direction puis une en perpendiculaire — ' + to + ' n\'est pas sur un « L » depuis ' + from + '.';
+  }
+  else if(p.type === 'k'){
+    if(!(df <= 1 && dr <= 1 && (df + dr) > 0))
+      return 'le roi n\'avance que d\'une seule case à la fois, dans toutes les directions (le roque excepté).';
+  }
+  else if(p.type === 'r'){
+    if(!(df === 0 || dr === 0))
+      return 'la tour ne se déplace qu\'en ligne droite, horizontale ou verticale — jamais en diagonale.';
+    glisse = true;
+  }
+  else if(p.type === 'b'){
+    if(df !== dr)
+      return 'le fou ne se déplace qu\'en diagonale — il reste d\'ailleurs toute la partie sur sa couleur de case d\'origine.';
+    glisse = true;
+  }
+  else if(p.type === 'q'){
+    if(!(df === 0 || dr === 0 || df === dr))
+      return 'la dame combine la tour et le fou : ligne droite ou diagonale exacte, mais rien entre les deux.';
+    glisse = true;
+  }
+  else if(p.type === 'p'){
+    const sens = (p.color === 'b') ? -1 : 1;
+    const avance1 = (r2 - r1) === sens, avance2 = (r2 - r1) === 2 * sens;
+    if(df === 0){
+      if(cible) return 'un pion ne capture jamais tout droit : la prise se fait uniquement en diagonale.';
+      if(avance2){
+        const depart = (p.color === 'b') ? 7 : 2;
+        if(r1 !== depart) return 'l\'avancée de deux cases n\'est permise qu\'au tout premier coup de chaque pion — ensuite, une case à la fois.';
+        glisse = true;
+      }else if(!avance1){
+        return 'un pion n\'avance que d\'une case vers le camp adverse (deux depuis sa rangée de départ) et ne recule jamais.';
+      }
+    }else if(df === 1 && avance1){
+      if(!cible) return 'en diagonale, le pion ne se déplace que pour capturer. (La prise « en passant » existe, mais uniquement au coup qui suit immédiatement la double avancée du pion adverse.)';
+    }else{
+      return 'un pion n\'avance que droit devant lui, d\'une case, et ne prend qu\'en diagonale immédiate — jamais en arrière.';
+    }
+  }
+
+  // Chemin barré (pièces glissantes et double pas du pion)
+  if(glisse){
+    const pf = Math.sign(f2 - f1), pr = Math.sign(r2 - r1);
+    let f = f1 + pf, r = r1 + pr;
+    while(f !== f2 || r !== r2){
+      const c = String.fromCharCode(97 + f) + r;
+      const occ = game.get(c);
+      if(occ) return 'le chemin est barré : ' + (occ.color === p.color ? 'ta propre pièce' : 'une pièce de Hartwig') + ' (' + NOMS_FR[occ.type] + ') occupe ' + c + ' — seul le cavalier saute par-dessus les pièces.';
+      f += pf; r += pr;
+    }
+  }
+
+  // Géométrie et chemin corrects : c'est donc une affaire de roi en danger
+  try{
+    const test = new Chess(game.fen());
+    test.remove(from);
+    if(cible) test.remove(to);
+    const typePose = (p.type === 'p' && (r2 === 1 || r2 === 8)) ? 'q' : p.type;
+    test.put({ type: typePose, color: p.color }, to);
+    if(test.in_check()){
+      if(game.in_check()) return 'ton roi est en échec : le règlement impose de parer l\'échec avant toute autre chose, et ce coup ne le fait pas.';
+      if(p.type === 'k') return 'cette case est contrôlée par une pièce de Hartwig — le roi ne peut jamais se placer sur une case attaquée.';
+      return 'ta pièce est « clouée » : en la déplaçant, tu découvrirais ton roi sur un échec, ce que le règlement interdit.';
+    }
+  }catch(e){}
+  return 'ce déplacement n\'est pas permis dans cette position.';
+}
+
+function montrerRefus(motif){
+  $('coach').innerHTML = '<p class="regle"><b>Coup refusé.</b> Règle : ' + motif + '</p>';
+}
+
 function jouerHumain(from, to){
   const candidats = coupsLegaux.filter(m => m.to === to);
   const promo = candidats.find(m => m.promotion);
