@@ -96,9 +96,30 @@
   }
   .sq.claire{background:var(--case-claire);}
   .sq.foncee{background:var(--case-foncee);}
-  .sq.dernier::after{
-    content:"";position:absolute;inset:0;
-    background:var(--jaune);opacity:.45;pointer-events:none;
+  /* Dernier coup : repères jaune plein — identiques sur cases claires et foncées */
+  .sq.dep::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    --m:calc(var(--sq) * .17);
+    background-image:
+      linear-gradient(var(--jaune),var(--jaune)),linear-gradient(var(--jaune),var(--jaune)),
+      linear-gradient(var(--jaune),var(--jaune)),linear-gradient(var(--jaune),var(--jaune)),
+      linear-gradient(var(--jaune),var(--jaune)),linear-gradient(var(--jaune),var(--jaune)),
+      linear-gradient(var(--jaune),var(--jaune)),linear-gradient(var(--jaune),var(--jaune));
+    background-position:
+      left 3px top 3px, left 3px top 3px,
+      right 3px top 3px, right 3px top 3px,
+      left 3px bottom 3px, left 3px bottom 3px,
+      right 3px bottom 3px, right 3px bottom 3px;
+    background-size:
+      var(--m) 3px, 3px var(--m),
+      var(--m) 3px, 3px var(--m),
+      var(--m) 3px, 3px var(--m),
+      var(--m) 3px, 3px var(--m);
+    background-repeat:no-repeat;
+  }
+  .sq.arr::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    box-shadow:inset 0 0 0 3px var(--jaune);
   }
   .sq.select::after{
     content:"";position:absolute;inset:0;
@@ -261,7 +282,7 @@
       <span class="nom">dune</span>
       <span class="sous">échecs · v0</span>
     </div>
-    <div class="etat-moteur"><span class="led charge" id="led"></span><span id="etatMoteur">Chargement du moteur</span></div>
+    <div class="etat-moteur"><span class="led charge" id="led"></span><span id="etatMoteur">Chargement de Hartwig</span></div>
   </header>
 
   <main>
@@ -277,7 +298,7 @@
       <div class="bandeau"><i></i><span>Partie</span></div>
 
       <div class="bloc">
-        <div class="label">Niveau du moteur</div>
+        <div class="label">Niveau de Hartwig</div>
         <div class="niveaux" id="niveaux">
           <button data-n="0" aria-pressed="false">Découverte</button>
           <button data-n="1" aria-pressed="true">Facile</button>
@@ -289,7 +310,7 @@
       <div class="bloc">
         <div class="statut" id="statut">
           <strong>Préparation de la partie…</strong>
-          <span class="trait">Tu joues les noirs</span>
+          <span class="trait">Tu joues les noirs · Hartwig les blancs</span>
         </div>
       </div>
 
@@ -301,7 +322,7 @@
 
       <div class="bandeau"><i></i><span>Le coach</span></div>
       <div class="coach" id="coach">
-        <p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ». Je regarde ce que le moteur en pense et je te dis ce qui s'est passé — sans te donner le coup suivant.</p>
+        <p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ». Je regarde ce que Hartwig en pense et je te dis ce qui s'est passé — sans te donner le coup suivant.</p>
       </div>
 
       <div class="coups" id="coups"></div>
@@ -310,7 +331,7 @@
 
   <footer>
     <span>SARL dune architecture + design · Nîmes</span>
-    <span class="maj">MAJ 15/08/2026</span>
+    <span class="maj">MAJ 16/08/2026</span>
   </footer>
 </div>
 
@@ -475,7 +496,8 @@ function dessiner(){
       d.className = 'sq ' + ((r + c) % 2 === 0 ? 'claire' : 'foncee');
       d.dataset.case = nom;
 
-      if(dernierCoup && (dernierCoup.from === nom || dernierCoup.to === nom)) d.classList.add('dernier');
+      if(dernierCoup && dernierCoup.from === nom) d.classList.add('dep');
+      if(dernierCoup && dernierCoup.to === nom) d.classList.add('arr');
       if(selection === nom) d.classList.add('select');
       if(roiEnEchec === nom) d.classList.add('echec');
 
@@ -615,13 +637,13 @@ function appliquer(from, to, promotion){
   selection = null; coupsLegaux = [];
   dessiner();
   if(verifierFin()) return;
-  majStatut('<strong>Le moteur réfléchit…</strong><span class="trait">' + NIVEAUX[niveau].nom + '</span>');
+  majStatut('<strong>Je réfléchis…</strong><span class="trait">Hartwig · ' + NIVEAUX[niveau].nom + '</span>');
   setTimeout(coupDuMoteur, 120);
 }
 
 async function coupDuMoteur(){
   if(!Moteur.estPret()){
-    majStatut('<strong>Le moteur n\'est pas disponible.</strong><span class="trait">Vérifie la connexion, puis relance une partie</span>');
+    majStatut('<strong>Hartwig n\'est pas disponible.</strong><span class="trait">Vérifie la connexion, puis relance une partie</span>');
     return;
   }
   moteurPense = true;
@@ -642,8 +664,8 @@ async function coupDuMoteur(){
   dernierCoup = { from, to };
   dessiner();
   if(verifierFin()) return;
-  majStatut('<strong>Le moteur a joué : ' + annonceCoup(coup) + (game.in_check() ? ' — échec !' : '.') + '</strong>'
-          + '<span class="trait">À toi de jouer</span>');
+  majStatut('<strong>J\'ai joué : ' + annonceCoup(coup) + (game.in_check() ? ' — échec !' : '.') + '</strong>'
+          + '<span class="trait">Hartwig · à toi de jouer</span>');
   majBoutons();
 }
 
@@ -651,7 +673,7 @@ async function coupDuMoteur(){
 function ouvertureDuMoteur(){
   if(!Moteur.estPret() || partieFinie) return;
   if(game.history().length > 0) return;
-  majStatut('<strong>Le moteur ouvre la partie…</strong><span class="trait">' + NIVEAUX[niveau].nom + '</span>');
+  majStatut('<strong>J\'ouvre la partie…</strong><span class="trait">Hartwig · ' + NIVEAUX[niveau].nom + '</span>');
   setTimeout(coupDuMoteur, 200);
 }
 
@@ -659,7 +681,8 @@ function annonceCoup(m){
   if(m.san === 'O-O') return 'petit roque';
   if(m.san === 'O-O-O') return 'grand roque';
   let t = NOMS_FR[m.piece] + ' ' + m.from + ' \u2192 ' + m.to;
-  if(m.captured) t += ' \u2014 prend ' + (m.captured === 'p' ? 'ton pion' : ('ta ' + NOMS_FR[m.captured]).replace('ta roi','ton roi').replace('ta fou','ton fou').replace('ta cavalier','ton cavalier').replace('ta pion','ton pion'));
+  const PRIS = { p:'ton pion', n:'ton cavalier', b:'ton fou', r:'ta tour', q:'ta dame', k:'ton roi' };
+  if(m.captured) t += ' \u2014 je prends ' + PRIS[m.captured];
   if(m.promotion) t += ', promotion en ' + NOMS_FR[m.promotion];
   return t;
 }
@@ -691,8 +714,8 @@ function verifierFin(){
   partieFinie = true;
   let txt;
   if(game.in_checkmate()) txt = game.turn() === 'b'
-      ? '<strong>Échec et mat — le moteur gagne.</strong>'
-      : '<strong>Échec et mat — tu gagnes.</strong>';
+      ? '<strong>Échec et mat — j\'ai gagné.</strong>'
+      : '<strong>Échec et mat — tu m\'as battu.</strong>';
   else if(game.in_stalemate()) txt = '<strong>Pat — partie nulle.</strong>';
   else if(game.insufficient_material()) txt = '<strong>Nulle — matériel insuffisant.</strong>';
   else if(game.in_threefold_repetition()) txt = '<strong>Nulle — triple répétition.</strong>';
@@ -728,7 +751,7 @@ async function expliquer(){
   const btn = $('btnExplique');
   btn.disabled = true; btn.textContent = 'J\'analyse la position…';
   const coach = $('coach');
-  coach.innerHTML = '<p class="vide">Le moteur chiffre la position, puis je rédige…</p>';
+  coach.innerHTML = '<p class="vide">Hartwig chiffre la position, puis je rédige…</p>';
 
   const dernier = hist[hist.length - 1];
   const fenApres = game.fen();
@@ -764,29 +787,29 @@ async function expliquer(){
 
   const fmt = (ev) => {
     if(!ev) return 'non chiffrée';
-    if(ev.mat !== undefined) return 'mat en ' + Math.abs(ev.mat) + (ev.mat > 0 ? ' à ton avantage' : ' pour le moteur');
+    if(ev.mat !== undefined) return 'mat en ' + Math.abs(ev.mat) + (ev.mat > 0 ? ' à ton avantage' : ' pour Hartwig');
     const p = (ev.cp / 100).toFixed(2);
-    return (ev.cp > 0 ? '+' : '') + p + (ev.cp > 0 ? ' à ton avantage' : ' pour le moteur');
+    return (ev.cp > 0 ? '+' : '') + p + (ev.cp > 0 ? ' à ton avantage' : ' pour Hartwig');
   };
 
   let chiffres = '';
   if(bloc){
-    chiffres = 'Coup joué : <b>' + dernier.san + '</b> par les ' + (dernier.color === 'w' ? 'blancs' : 'noirs') + '<br>'
+    chiffres = 'Coup joué : <b>' + dernier.san + '</b> par ' + (dernier.color === 'w' ? 'Hartwig' : 'toi') + '<br>'
              + 'Évaluation avant : ' + fmt(bloc.evAvant) + '<br>'
              + 'Évaluation après : ' + fmt(bloc.evApres)
-             + (bloc.alternative ? '<br>Le moteur préférait : <b>' + bloc.alternative + '</b>' : '');
+             + (bloc.alternative ? '<br>Hartwig préférait : <b>' + bloc.alternative + '</b>' : '');
   }
 
   const contexte = [
     'Position de départ standard, partie en cours.',
-    'Le joueur humain a les noirs, le moteur a les blancs.',
+    'Le joueur humain (que tu tutoies) a les noirs. Son adversaire est le moteur Stockfish, surnommé Hartwig — désigne-le toujours par ce nom, avec les blancs.',
     'Coups joués (PGN) : ' + (game.pgn() || '(aucun)'),
-    'Dernier demi-coup : ' + dernier.san + ' joué par les ' + (dernier.color === 'w' ? 'blancs (le moteur)' : 'noirs (le joueur)') + '.',
+    'Dernier demi-coup : ' + dernier.san + ' joué par ' + (dernier.color === 'w' ? 'Hartwig (blancs)' : 'le joueur (noirs)') + '.',
     'FEN après ce coup : ' + fenApres,
-    'Convention des évaluations ci-dessous : un score positif est à l\'avantage des noirs (le joueur), un score négatif à l\'avantage des blancs (le moteur).',
+    'Convention des évaluations ci-dessous : un score positif est à l\'avantage des noirs (le joueur), un score négatif à l\'avantage des blancs (Hartwig).',
     bloc ? ('Évaluation Stockfish avant le coup : ' + fmt(bloc.evAvant)) : '',
     bloc ? ('Évaluation Stockfish après le coup : ' + fmt(bloc.evApres)) : '',
-    (bloc && bloc.alternative) ? ('Coup préféré par Stockfish à la place : ' + bloc.alternative) : '',
+    (bloc && bloc.alternative) ? ('Coup que Hartwig préférait à la place : ' + bloc.alternative) : '',
     game.in_check() ? 'Le camp au trait est en échec.' : ''
   ].filter(Boolean).join('\n');
 
@@ -864,28 +887,28 @@ $('btnExplique').onclick = expliquer;
    ------------------------------------------------------------ */
 function lancerMoteur(){
   $('led').className = 'led charge';
-  $('etatMoteur').textContent = 'Chargement du moteur';
-  majStatut('<strong>Chargement du moteur…</strong><span class="trait">Une dizaine de secondes au premier lancement</span>');
+  $('etatMoteur').textContent = 'Chargement de Hartwig';
+  majStatut('<strong>Chargement de Hartwig…</strong><span class="trait">Une dizaine de secondes au premier lancement</span>');
 
-  Moteur.demarrer((etape) => { $('etatMoteur').textContent = etape.replace('Chargement du moteur · ', 'Moteur · '); })
+  Moteur.demarrer((etape) => { $('etatMoteur').textContent = etape.replace('Chargement du moteur · ', 'Hartwig · '); })
     .then((voie) => {
       $('led').className = 'led ok';
-      $('etatMoteur').textContent = 'Moteur prêt';
+      $('etatMoteur').textContent = 'Hartwig prêt';
       ouvertureDuMoteur();
     })
     .catch((e) => {
       $('led').className = 'led ko';
-      $('etatMoteur').textContent = 'Moteur indisponible';
+      $('etatMoteur').textContent = 'Hartwig indisponible';
       const bloque = /worker/i.test(String(e.message || e));
-      majStatut('<strong>Le moteur n\'a pas démarré.</strong>'
+      majStatut('<strong>Hartwig n\'a pas démarré.</strong>'
               + '<span class="trait">Tu joues les noirs : sans lui, personne n\'ouvre la partie</span>');
       $('coach').innerHTML =
         (bloque
           ? '<p class="erreur">Cet aperçu interdit les moteurs de calcul en tâche de fond : Stockfish ne peut pas s\'y lancer. '
             + 'Le même fichier fonctionne une fois mis en ligne (GitHub Pages / Railway).</p>'
-          : '<p class="erreur">Stockfish n\'a pas pu être chargé. Appuie sur « Relancer le moteur » ; si ça bloque encore, envoie-moi la ligne de diagnostic.</p>')
+          : '<p class="erreur">Hartwig (Stockfish) n\'a pas pu être chargé. Appuie sur « Relancer le moteur » ; si ça bloque encore, envoie-moi la ligne de diagnostic.</p>')
         + '<p class="chiffres">Diagnostic : ' + String(e.message || e).replace(/</g,'&lt;') + '</p>'
-        + '<p><button class="act" id="btnRelance">Relancer le moteur</button></p>';
+        + '<p><button class="act" id="btnRelance">Relancer Hartwig</button></p>';
       const b = $('btnRelance');
       if(b) b.onclick = lancerMoteur;
     });
