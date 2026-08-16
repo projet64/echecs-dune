@@ -49,8 +49,12 @@ if(BDD_URL){
     await pool.query(`INSERT INTO profils (nom, niveau_prefere, note_coach) VALUES
       ('Jérôme', 1, 'Jérôme, 57 ans, architecte. Ton direct, pragmatique, zéro flatterie, zéro jargon inutile.'),
       ('Théa', 0, 'Théa, la petite-fille de Jérôme, bonne joueuse déjà. Vocabulaire simple et direct, encourage la progression sans niaiserie.'),
-      ('Papi Gérard', 1, 'Le beau-père de Jérôme, joueur d''expérience. Ton classique et respectueux, tutoiement.')
+      ('Charles', 1, 'Charles, le beau-père de Jérôme, joueur d''expérience. Ton classique et respectueux, tutoiement.')
       ON CONFLICT (nom) DO NOTHING`);
+    // Correction d'un prénom improvisé lors d'un premier déploiement
+    await pool.query(`UPDATE profils SET nom = 'Charles',
+      note_coach = 'Charles, le beau-père de Jérôme, joueur d''expérience. Ton classique et respectueux, tutoiement.'
+      WHERE nom = 'Papi Gérard' AND NOT EXISTS (SELECT 1 FROM profils WHERE nom = 'Charles')`);
     console.log('Tables parties et profils prêtes.');
   };
   init().catch(e => console.log('Erreur création tables :', e.message));
