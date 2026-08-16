@@ -447,11 +447,14 @@ function pieceSVG(type, couleurChess){
   return '<svg class="piece ' + (couleurChess === 'w' ? 'b' : 'n') + '" viewBox="0 0 100 100" aria-hidden="true"><use href="#p_' + type + '"/></svg>';
 }
 
+/* Chaque niveau combine trois leviers : la force de calcul de Stockfish
+   (skill/temps/profondeur) ET un taux d'imprécisions volontaires (alea) :
+   la probabilité qu'Hartwig joue un coup au jugé, comme un humain distrait. */
 const NIVEAUX = [
-  { nom:'Découverte', skill:0,  movetime:200,  depth:4  },
-  { nom:'Facile',     skill:3,  movetime:350,  depth:6  },
-  { nom:'Moyen',      skill:9,  movetime:700,  depth:10 },
-  { nom:'Costaud',    skill:15, movetime:1200, depth:14 }
+  { nom:'Découverte', skill:0,  movetime:120,  depth:2,  alea:0.45 },
+  { nom:'Facile',     skill:3,  movetime:250,  depth:4,  alea:0.20 },
+  { nom:'Moyen',      skill:9,  movetime:600,  depth:8,  alea:0.06 },
+  { nom:'Costaud',    skill:16, movetime:1200, depth:14, alea:0    }
 ];
 
 let niveau = 1;
@@ -975,14 +978,22 @@ async function coupDuMoteur(){
   majBoutons();
   const t0 = Date.now();
   const cfg = NIVEAUX[niveau];
-  const res = await Moteur.chercher(game.fen(), { skill:cfg.skill, movetime:cfg.movetime, depth:cfg.depth });
-  if(!res || !res.best){ moteurPense = false; verifierFin(); majBoutons(); return; }
+
+  let from, to, pr;
+  if(Math.random() < (cfg.alea || 0)){
+    // Imprécision volontaire : Hartwig joue un coup légal au jugé
+    const legaux = game.moves({ verbose:true });
+    const m = legaux[Math.floor(Math.random() * legaux.length)];
+    from = m.from; to = m.to; pr = m.promotion;
+  }else{
+    const res = await Moteur.chercher(game.fen(), { skill:cfg.skill, movetime:cfg.movetime, depth:cfg.depth });
+    if(!res || !res.best){ moteurPense = false; verifierFin(); majBoutons(); return; }
+    from = res.best.slice(0,2); to = res.best.slice(2,4); pr = res.best.slice(4,5) || undefined;
+  }
 
   // Temps de réflexion minimal perceptible, puis déplacement animé (~0,5 s)
   const attente = Math.max(0, 800 - (Date.now() - t0));
   await new Promise(r => setTimeout(r, attente));
-
-  const from = res.best.slice(0,2), to = res.best.slice(2,4), pr = res.best.slice(4,5) || undefined;
   const coup = game.move({ from, to, promotion: pr || 'q' });
   await animerCoup(from, to, 500);
   moteurPense = false;
