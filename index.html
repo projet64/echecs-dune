@@ -238,6 +238,53 @@
   .promo .choix .piece{width:40px;height:40px;}
   .promo .choix button:hover{border-color:var(--noir);background:var(--jaune);}
 
+  /* ---------- écran d'accueil / profils ---------- */
+  .accueil{
+    position:fixed;inset:0;z-index:90;background:var(--creme);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  .accueil.off{display:none;}
+  .accueil .marque-a{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+  .accueil .marque-a .past{width:16px;height:16px;background:var(--jaune);}
+  .accueil .marque-a .nom{font-size:30px;font-weight:700;letter-spacing:.5px;}
+  .accueil .sous-a{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--gris);margin-bottom:34px;}
+  .accueil .invite{font-size:13px;color:var(--gris);margin-bottom:14px;}
+  .code-bloc{display:flex;gap:8px;margin-bottom:10px;}
+  .code-bloc input{
+    font:inherit;font-size:16px;letter-spacing:2px;padding:12px 14px;width:200px;
+    border:1px solid var(--noir);background:#fff;color:var(--noir);text-align:center;
+  }
+  .code-bloc button{
+    font:inherit;font-size:14px;font-weight:600;padding:12px 20px;
+    border:1px solid var(--noir);background:var(--noir);color:#fff;cursor:pointer;
+  }
+  .accueil .err{color:#b03a2e;font-size:12px;min-height:18px;margin-bottom:6px;}
+  .profils-grille{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:640px;}
+  .carte-profil{
+    font:inherit;cursor:pointer;
+    width:150px;padding:20px 12px 16px;
+    background:#fff;border:1px solid var(--noir);
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+  }
+  .carte-profil .rond{
+    width:52px;height:52px;border-radius:50%;
+    background:var(--noir);color:var(--jaune);
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;font-weight:700;
+  }
+  .carte-profil .pnom{font-size:14px;font-weight:600;text-align:center;word-break:break-word;}
+  .carte-profil.ajout{border-style:dashed;border-color:var(--gris);color:var(--gris);}
+  .carte-profil.ajout .rond{background:transparent;border:1.5px dashed var(--gris);color:var(--gris);font-size:28px;font-weight:400;}
+  .nouveau-bloc{display:none;flex-direction:column;align-items:center;gap:10px;margin-top:16px;}
+  .nouveau-bloc.on{display:flex;}
+  .accueil .note-pied{position:absolute;bottom:16px;font-size:9px;color:var(--gris);letter-spacing:.4px;}
+  .qui{
+    font:inherit;background:none;border:none;cursor:pointer;
+    font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gris);
+    padding:4px 8px;border:1px solid var(--filet);
+  }
+
   @media (prefers-reduced-motion: reduce){ *{animation:none !important;transition:none !important;} }
 </style>
 </head>
@@ -275,6 +322,34 @@
 </symbol>
 </defs>
 </svg>
+<div class="accueil" id="accueil">
+  <div class="marque-a"><span class="past"></span><span class="nom">dune</span></div>
+  <div class="sous-a">échecs · partenaire de jeu</div>
+
+  <div id="etapeCode">
+    <div class="invite">Entre le code d'accès :</div>
+    <div class="code-bloc">
+      <input type="password" id="champCode" autocomplete="off" autocapitalize="none" placeholder="Code">
+      <button id="btnCode">Entrer</button>
+    </div>
+    <div class="err" id="errCode"></div>
+  </div>
+
+  <div id="etapeProfils" style="display:none;flex-direction:column;align-items:center;">
+    <div class="invite">Qui joue ?</div>
+    <div class="profils-grille" id="grilleProfils"></div>
+    <div class="nouveau-bloc" id="nouveauBloc">
+      <div class="code-bloc">
+        <input type="text" id="champNom" maxlength="24" placeholder="Prénom" autocomplete="off">
+        <button id="btnCreer">Créer</button>
+      </div>
+      <div class="err" id="errNom"></div>
+    </div>
+    <div class="err" id="errProfils"></div>
+  </div>
+
+  <div class="note-pied">SARL dune architecture + design · Nîmes — usage privé</div>
+</div>
 <div class="app">
 
   <header>
@@ -283,7 +358,10 @@
       <span class="nom">dune</span>
       <span class="sous">échecs · v0</span>
     </div>
-    <div class="etat-moteur"><span class="led charge" id="led"></span><span id="etatMoteur">Chargement de Hartwig</span></div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <button class="qui" id="btnQui" title="Changer de joueur">Joueur</button>
+      <div class="etat-moteur"><span class="led charge" id="led"></span><span id="etatMoteur">Chargement de Hartwig</span></div>
+    </div>
   </header>
 
   <main>
@@ -377,6 +455,116 @@ let moteurPense = false;
 let partieFinie = false;
 
 const $ = id => document.getElementById(id);
+
+/* ------------------------------------------------------------
+   0. Accueil : code d'accès + choix du profil
+   ------------------------------------------------------------ */
+let profilActif = null; // {id, nom, niveau_prefere}
+
+function initAccueil(){
+  const dejaEntre = localStorage.getItem('dune_acces') === 'ok';
+  if(dejaEntre){ montrerProfils(); }
+  else{
+    // Entrée automatique si le code est porté par l'adresse (ex. …/?code=dune64)
+    const codeUrl = new URLSearchParams(location.search).get('code');
+    if(codeUrl){
+      fetch('/api/entree', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ code: codeUrl })
+      }).then(r => {
+        if(r.ok){ localStorage.setItem('dune_acces', 'ok'); montrerProfils(); }
+      }).catch(() => {});
+    }
+  }
+  $('btnCode').onclick = verifierCode;
+  $('champCode').addEventListener('keydown', (e) => { if(e.key === 'Enter') verifierCode(); });
+  $('btnCreer').onclick = creerProfil;
+  $('btnQui').onclick = () => {
+    profilActif = null;
+    localStorage.removeItem('dune_profil');
+    $('accueil').classList.remove('off');
+    montrerProfils();
+  };
+}
+
+async function verifierCode(){
+  const code = $('champCode').value;
+  $('errCode').textContent = '';
+  try{
+    const rep = await fetch('/api/entree', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ code })
+    });
+    if(!rep.ok){ $('errCode').textContent = 'Code incorrect — réessaie.'; return; }
+    localStorage.setItem('dune_acces', 'ok');
+    montrerProfils();
+  }catch(e){
+    $('errCode').textContent = 'Vérification impossible (hors ligne ou GitHub Pages).';
+  }
+}
+
+async function montrerProfils(){
+  $('etapeCode').style.display = 'none';
+  $('etapeProfils').style.display = 'flex';
+  $('errProfils').textContent = '';
+  try{
+    const rep = await fetch('/api/profils');
+    const data = await rep.json().catch(() => ({}));
+    if(!rep.ok) throw new Error(data.erreur || ('HTTP ' + rep.status));
+    const grille = $('grilleProfils');
+    grille.innerHTML = '';
+    (data.profils || []).forEach(pr => {
+      const c = document.createElement('button');
+      c.className = 'carte-profil';
+      c.innerHTML = '<span class="rond">' + pr.nom.trim().charAt(0).toUpperCase() + '</span><span class="pnom">' + pr.nom + '</span>';
+      c.onclick = () => choisirProfil(pr);
+      grille.appendChild(c);
+    });
+    const plus = document.createElement('button');
+    plus.className = 'carte-profil ajout';
+    plus.innerHTML = '<span class="rond">+</span><span class="pnom">Nouveau joueur</span>';
+    plus.onclick = () => { $('nouveauBloc').classList.toggle('on'); $('champNom').focus(); };
+    grille.appendChild(plus);
+
+    // Reprise automatique du dernier profil
+    const memo = localStorage.getItem('dune_profil');
+    if(memo){
+      const pr = (data.profils || []).find(x => String(x.id) === memo);
+      if(pr) choisirProfil(pr);
+    }
+  }catch(e){
+    $('errProfils').textContent = 'Profils indisponibles — ' + String(e.message || e);
+  }
+}
+
+async function creerProfil(){
+  const nom = $('champNom').value.trim();
+  $('errNom').textContent = '';
+  if(nom.length < 2){ $('errNom').textContent = 'Deux caractères minimum.'; return; }
+  try{
+    const rep = await fetch('/api/profils', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ nom })
+    });
+    const data = await rep.json().catch(() => ({}));
+    if(!rep.ok) throw new Error(data.erreur || ('HTTP ' + rep.status));
+    $('champNom').value = '';
+    $('nouveauBloc').classList.remove('on');
+    montrerProfils();
+  }catch(e){ $('errNom').textContent = String(e.message || e); }
+}
+
+function choisirProfil(pr){
+  profilActif = pr;
+  localStorage.setItem('dune_profil', String(pr.id));
+  $('btnQui').textContent = pr.nom;
+  // Niveau préféré du profil
+  if(pr.niveau_prefere >= 0 && pr.niveau_prefere <= 3){
+    niveau = pr.niveau_prefere;
+    [...$('niveaux').children].forEach((x, i) => x.setAttribute('aria-pressed', i === niveau ? 'true' : 'false'));
+  }
+  $('accueil').classList.add('off');
+}
 
 /* ------------------------------------------------------------
    1. Moteur Stockfish — chargé depuis le CDN dans un worker
@@ -860,7 +1048,8 @@ async function enregistrerPartie(){
         pgn: game.pgn(),
         resultat: resultatPartie,
         niveau: NIVEAUX[niveau].nom,
-        nb_coups: Math.ceil(game.history().length / 2)
+        nb_coups: Math.ceil(game.history().length / 2),
+        profil: profilActif ? profilActif.id : null
       })
     });
   }catch(e){ /* hors Railway : pas de mémoire, pas d'alerte */ }
@@ -901,7 +1090,7 @@ async function faireDebrief(){
     const rep = await fetch('/api/debrief', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ pgn: game.pgn(), resultat: resultatPartie, niveau: NIVEAUX[niveau].nom, evals })
+      body: JSON.stringify({ pgn: game.pgn(), resultat: resultatPartie, niveau: NIVEAUX[niveau].nom, evals, profil: profilActif ? profilActif.id : null })
     });
     const data = await rep.json().catch(() => ({}));
     if(!rep.ok) throw new Error(data.erreur || ('HTTP ' + rep.status));
@@ -921,19 +1110,24 @@ async function afficherParties(){
   const coach = $('coach');
   coach.innerHTML = '<p class="vide">Je vais chercher tes parties…</p>';
   try{
-    const rep = await fetch('/api/parties');
+    const rep = await fetch('/api/parties' + (profilActif ? ('?profil=' + profilActif.id) : ''));
     const data = await rep.json().catch(() => ({}));
     if(!rep.ok) throw new Error(data.erreur || ('HTTP ' + rep.status));
     if(!data.parties || !data.parties.length){
-      coach.innerHTML = '<p class="vide">Aucune partie enregistrée pour l\'instant. Termine une partie : elle s\'enregistre toute seule.</p>';
+      coach.innerHTML = '<p class="vide">Aucune partie enregistrée pour ' + (profilActif ? profilActif.nom : 'ce joueur') + ' pour l\'instant. Termine une partie : elle s\'enregistre toute seule.</p>';
       return;
     }
+    const st = data.stats || {victoires:0, defaites:0, nulles:0};
+    const entete = '<p><strong>' + (profilActif ? profilActif.nom : 'Joueur') + '</strong> — '
+      + st.victoires + ' victoire' + (st.victoires > 1 ? 's' : '') + ' · '
+      + st.defaites + ' défaite' + (st.defaites > 1 ? 's' : '') + ' · '
+      + st.nulles + ' nulle' + (st.nulles > 1 ? 's' : '') + '</p>';
     const lignes = data.parties.map(p => {
       const d = new Date(p.date);
       const quand = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
       return quand + ' — <b>' + p.resultat + '</b> · ' + p.niveau + ' · ' + p.nb_coups + ' coups';
     });
-    coach.innerHTML = '<p class="chiffres">' + lignes.join('<br>') + '</p>';
+    coach.innerHTML = entete + '<p class="chiffres">' + lignes.join('<br>') + '</p>';
   }catch(e){
     coach.innerHTML = '<p class="erreur">Historique indisponible — ' + String(e.message || e).replace(/</g,'&lt;')
       + '</p><p class="chiffres">Si tu es sur GitHub Pages, passe sur l\'adresse Railway. Sinon, recopie-moi ce message.</p>';
@@ -1032,7 +1226,7 @@ async function expliquer(){
     const rep = await fetch('/api/coach', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ contexte })
+      body: JSON.stringify({ contexte, profil: profilActif ? profilActif.id : null })
     });
     if(!rep.ok) throw new Error('HTTP ' + rep.status);
     const data = await rep.json();
@@ -1075,6 +1269,12 @@ $('niveaux').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if(!b) return;
   niveau = parseInt(b.dataset.n, 10);
   [...$('niveaux').children].forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  if(profilActif){
+    fetch('/api/profil', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id: profilActif.id, niveau_prefere: niveau })
+    }).catch(() => {});
+  }
 });
 
 $('btnNouvelle').onclick = () => {
@@ -1144,6 +1344,7 @@ function init(){
   majBoutons();
   window.addEventListener('resize', () => { ajusterTaille(); });
   window.addEventListener('orientationchange', () => setTimeout(ajusterTaille, 250));
+  initAccueil();
   lancerMoteur();
 }
 init();

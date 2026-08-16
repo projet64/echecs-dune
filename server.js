@@ -1,11 +1,14 @@
 /* ============================================================
-   échecs dune — serveur v1b (Railway)
+   échecs dune — serveur v2 (Railway)
    1. Sert la page du jeu (index.html)
-   2. /api/coach    : commentaire d'un coup (API Anthropic)
-   3. /api/partie   : enregistre une partie terminée (Postgres)
-   4. /api/parties  : liste des parties enregistrées
-   5. /api/debrief  : débrief rédigé de la partie complète
-   La clé API et l'accès base restent côté serveur.
+   2. /api/entree   : vérifie le code d'accès famille
+   3. /api/profils  : liste / création des profils joueurs
+   4. /api/profil   : mise à jour du niveau préféré
+   5. /api/coach    : commentaire d'un coup (API Anthropic)
+   6. /api/partie   : enregistre une partie terminée (Postgres)
+   7. /api/parties  : parties + stats du profil actif
+   8. /api/debrief  : débrief rédigé de la partie complète
+   La clé API, le code d'accès et la base restent côté serveur.
    ============================================================ */
 
 const http = require('http');
@@ -15,6 +18,7 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const CLE = process.env.ANTHROPIC_API_KEY;
 const BDD_URL = process.env.DATABASE_URL;
+const CODE_ACCES = (process.env.CODE_ACCES || 'dune64').toLowerCase();
 
 /* ---------- Base de données (Postgres via pg) ---------- */
 let pool = null;
@@ -24,20 +28,37 @@ if(BDD_URL){
     connectionString: BDD_URL,
     ssl: BDD_URL.includes('railway.internal') ? false : { rejectUnauthorized: false }
   });
-  pool.query(`CREATE TABLE IF NOT EXISTS parties (
-    id SERIAL PRIMARY KEY,
-    date TIMESTAMPTZ DEFAULT now(),
-    niveau TEXT,
-    resultat TEXT,
-    nb_coups INT,
-    pgn TEXT
-  )`).then(() => console.log('Table parties prête.'))
-    .catch(e => console.log('Erreur création table :', e.message));
+  const init = async () => {
+    await pool.query(`CREATE TABLE IF NOT EXISTS parties (
+      id SERIAL PRIMARY KEY,
+      date TIMESTAMPTZ DEFAULT now(),
+      niveau TEXT,
+      resultat TEXT,
+      nb_coups INT,
+      pgn TEXT
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS profils (
+      id SERIAL PRIMARY KEY,
+      nom TEXT UNIQUE NOT NULL,
+      niveau_prefere INT DEFAULT 1,
+      note_coach TEXT DEFAULT '',
+      cree_le TIMESTAMPTZ DEFAULT now()
+    )`);
+    await pool.query(`ALTER TABLE parties ADD COLUMN IF NOT EXISTS profil_id INT`);
+    // Profils de départ (ignorés s'ils existent déjà)
+    await pool.query(`INSERT INTO profils (nom, niveau_prefere, note_coach) VALUES
+      ('Jérôme', 1, 'Jérôme, 57 ans, architecte. Ton direct, pragmatique, zéro flatterie, zéro jargon inutile.'),
+      ('Théa', 0, 'Théa, la petite-fille de Jérôme, bonne joueuse déjà. Vocabulaire simple et direct, encourage la progression sans niaiserie.'),
+      ('Papi Gérard', 1, 'Le beau-père de Jérôme, joueur d''expérience. Ton classique et respectueux, tutoiement.')
+      ON CONFLICT (nom) DO NOTHING`);
+    console.log('Tables parties et profils prêtes.');
+  };
+  init().catch(e => console.log('Erreur création tables :', e.message));
 }
 
 /* ---------- Consignes du coach ---------- */
 const CONSIGNE_COUP =
-  "Tu es coach d'échecs. Tu t'adresses à Jérôme, joueur occasionnel, en français, en le tutoyant. " +
+  "Tu es coach d'échecs. Tu t'adresses au joueur en français, en le tutoyant ; son identité et le ton à adopter sont précisés dans les données. " +
   "Ton direct, pragmatique, zéro flatterie, zéro jargon inutile. " +
   "Explique le dernier demi-coup indiqué : ce qu'il fait concrètement sur l'échiquier (pièce, case, ce qu'il attaque, défend, ouvre ou affaiblit) et pourquoi l'évaluation a bougé ou non. " +
   "Appuie-toi uniquement sur les données fournies : ne calcule pas de variantes longues, n'invente aucune pièce ni aucune case. " +
@@ -46,9 +67,9 @@ const CONSIGNE_COUP =
   "Données de la position :\n";
 
 const CONSIGNE_DEBRIEF =
-  "Tu es coach d'échecs. Tu t'adresses à Jérôme, joueur occasionnel, en français, en le tutoyant. " +
-  "Ton direct, pragmatique, zéro flatterie. Son adversaire est le moteur Stockfish, surnommé Hartwig — désigne-le par ce nom. " +
-  "Jérôme avait les noirs, Hartwig les blancs. " +
+  "Tu es coach d'échecs. Tu t'adresses au joueur en français, en le tutoyant ; son identité et le ton à adopter sont précisés dans les données. " +
+  "Son adversaire est le moteur Stockfish, surnommé Hartwig — désigne-le par ce nom. " +
+  "Le joueur avait les noirs, Hartwig les blancs. " +
   "Tu reçois le PGN complet et la liste des évaluations après chaque demi-coup, du point de vue de Jérôme " +
   "(positif = avantage Jérôme, en centipions ; ±9999 = mat forcé ; null = non chiffré). " +
   "Rédige le débrief de la partie : la physionomie générale en une ou deux phrases, " +
@@ -111,12 +132,62 @@ const server = http.createServer(async (req, res) => {
     return servirFichier(res, 'index.html', 'text/html; charset=utf-8');
   }
 
+  /* --- Code d'accès famille --- */
+  if(req.method === 'POST' && req.url === '/api/entree'){
+    try{
+      const { code } = await lireCorps(req);
+      if(typeof code !== 'string' || code.trim().toLowerCase() !== CODE_ACCES){
+        repondre(res, 403, { erreur: 'Code incorrect.' });
+        return;
+      }
+      repondre(res, 200, { ok: true });
+    }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
+    return;
+  }
+
+  /* --- Profils : liste et création --- */
+  if(req.url === '/api/profils' && (req.method === 'GET' || req.method === 'POST')){
+    try{
+      if(!pool) throw new Error('Base de données non branchée.');
+      if(req.method === 'POST'){
+        const { nom } = await lireCorps(req);
+        const propre = String(nom || '').trim().slice(0, 24);
+        if(propre.length < 2) throw new Error('Nom trop court (2 caractères minimum).');
+        await pool.query(
+          `INSERT INTO profils (nom, note_coach) VALUES ($1, $2) ON CONFLICT (nom) DO NOTHING`,
+          [propre, 'Invité de la famille ou proche de dune. Ton amical et direct, tutoiement.']
+        );
+      }
+      const r = await pool.query('SELECT id, nom, niveau_prefere FROM profils ORDER BY cree_le');
+      repondre(res, 200, { profils: r.rows });
+    }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
+    return;
+  }
+
+  /* --- Profil : mémoriser le niveau préféré --- */
+  if(req.method === 'POST' && req.url === '/api/profil'){
+    try{
+      if(!pool) throw new Error('Base de données non branchée.');
+      const { id, niveau_prefere } = await lireCorps(req);
+      const n = parseInt(niveau_prefere, 10);
+      if(!Number.isInteger(parseInt(id,10)) || !(n >= 0 && n <= 3)) throw new Error('paramètres invalides');
+      await pool.query('UPDATE profils SET niveau_prefere = $1 WHERE id = $2', [n, parseInt(id,10)]);
+      repondre(res, 200, { ok: true });
+    }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
+    return;
+  }
+
   /* --- Commentaire d'un coup --- */
   if(req.method === 'POST' && req.url === '/api/coach'){
     try{
-      const { contexte } = await lireCorps(req);
+      const { contexte, profil } = await lireCorps(req);
       if(typeof contexte !== 'string' || contexte.length < 10 || contexte.length > 8000) throw new Error('contexte invalide');
-      const texte = await demanderClaude(CONSIGNE_COUP, contexte, 600);
+      let note = '';
+      if(pool && profil){
+        const r = await pool.query('SELECT nom, note_coach FROM profils WHERE id = $1', [parseInt(profil,10) || 0]);
+        if(r.rows[0]) note = 'Ton interlocuteur : ' + r.rows[0].nom + '. ' + (r.rows[0].note_coach || '') + '\n';
+      }
+      const texte = await demanderClaude(CONSIGNE_COUP, note + contexte, 600);
       repondre(res, 200, { texte });
     }catch(e){ repondre(res, e.http || 400, { erreur: String(e.message || e) }); }
     return;
@@ -126,11 +197,11 @@ const server = http.createServer(async (req, res) => {
   if(req.method === 'POST' && req.url === '/api/partie'){
     try{
       if(!pool) throw new Error('Base de données non branchée (variable DATABASE_URL absente).');
-      const { pgn, resultat, niveau, nb_coups } = await lireCorps(req);
+      const { pgn, resultat, niveau, nb_coups, profil } = await lireCorps(req);
       if(typeof pgn !== 'string' || pgn.length < 3 || pgn.length > 20000) throw new Error('pgn invalide');
       const r = await pool.query(
-        'INSERT INTO parties (niveau, resultat, nb_coups, pgn) VALUES ($1,$2,$3,$4) RETURNING id',
-        [String(niveau || '').slice(0,30), String(resultat || '').slice(0,30), parseInt(nb_coups,10) || 0, pgn]
+        'INSERT INTO parties (niveau, resultat, nb_coups, pgn, profil_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+        [String(niveau || '').slice(0,30), String(resultat || '').slice(0,30), parseInt(nb_coups,10) || 0, pgn, parseInt(profil,10) || null]
       );
       repondre(res, 200, { id: r.rows[0].id });
     }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
@@ -138,11 +209,21 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* --- Liste des parties --- */
-  if(req.method === 'GET' && req.url === '/api/parties'){
+  if(req.method === 'GET' && req.url.indexOf('/api/parties') === 0){
     try{
       if(!pool) throw new Error('Base de données non branchée (variable DATABASE_URL absente).');
-      const r = await pool.query('SELECT id, date, niveau, resultat, nb_coups FROM parties ORDER BY date DESC LIMIT 50');
-      repondre(res, 200, { parties: r.rows });
+      const m = req.url.match(/[?&]profil=(\d+)/);
+      const pid = m ? parseInt(m[1], 10) : null;
+      const r = pid
+        ? await pool.query('SELECT id, date, niveau, resultat, nb_coups FROM parties WHERE profil_id = $1 ORDER BY date DESC LIMIT 50', [pid])
+        : await pool.query('SELECT id, date, niveau, resultat, nb_coups FROM parties ORDER BY date DESC LIMIT 50');
+      const stats = { victoires:0, defaites:0, nulles:0 };
+      r.rows.forEach(x => {
+        if(x.resultat === 'Victoire') stats.victoires++;
+        else if(x.resultat === 'Défaite') stats.defaites++;
+        else stats.nulles++;
+      });
+      repondre(res, 200, { parties: r.rows, stats });
     }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
     return;
   }
@@ -150,10 +231,15 @@ const server = http.createServer(async (req, res) => {
   /* --- Débrief de fin de partie --- */
   if(req.method === 'POST' && req.url === '/api/debrief'){
     try{
-      const { pgn, resultat, niveau, evals } = await lireCorps(req);
+      const { pgn, resultat, niveau, evals, profil } = await lireCorps(req);
       if(typeof pgn !== 'string' || pgn.length < 3 || pgn.length > 20000) throw new Error('pgn invalide');
       if(!Array.isArray(evals) || evals.length > 400) throw new Error('évaluations invalides');
-      const contenu =
+      let note = '';
+      if(pool && profil){
+        const r = await pool.query('SELECT nom, note_coach FROM profils WHERE id = $1', [parseInt(profil,10) || 0]);
+        if(r.rows[0]) note = 'Ton interlocuteur : ' + r.rows[0].nom + '. ' + (r.rows[0].note_coach || '') + '\n';
+      }
+      const contenu = note +
         'Résultat (point de vue de Jérôme) : ' + String(resultat || 'inconnu') + '\n' +
         'Niveau de Hartwig : ' + String(niveau || 'inconnu') + '\n' +
         'PGN : ' + pgn + '\n' +
@@ -170,7 +256,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log('échecs dune — serveur v1b en écoute sur le port ' + PORT);
+  console.log('échecs dune — serveur v2 en écoute sur le port ' + PORT);
   if(!CLE) console.log('ATTENTION : ANTHROPIC_API_KEY absente, le coach ne répondra pas.');
   if(!BDD_URL) console.log('ATTENTION : DATABASE_URL absente, la mémoire des parties est inactive.');
 });
