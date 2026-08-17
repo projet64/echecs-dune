@@ -1405,16 +1405,16 @@ function construireScene(){
   // Lumière d'atelier : douce, latérale, ombres tendres
   scene.add(new T.AmbientLight(0xFFFFFF, 0.13));
   const soleil = new T.DirectionalLight(0xFFEFDC, 0.8);
-  soleil.position.set(6, 12, 5);
+  soleil.position.set(3.2, 7.2, -11.5);   // nord-est, vers 13 h, ~32° d'élévation
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(1024, 1024);
   soleil.shadow.bias = -0.0004;
-  soleil.shadow.camera.left = -11; soleil.shadow.camera.right = 11;
-  soleil.shadow.camera.top = 11;   soleil.shadow.camera.bottom = -11;
+  soleil.shadow.camera.left = -14; soleil.shadow.camera.right = 14;
+  soleil.shadow.camera.top = 14;   soleil.shadow.camera.bottom = -14;
   scene.add(soleil);
   // Contre-jour discret : modèle les volumes sans écraser les ombres
-  const contre = new T.DirectionalLight(0xFFE9D0, 0.1);
-  contre.position.set(-5, 6, -4);
+  const contre = new T.DirectionalLight(0xFFE9D0, 0.2);
+  contre.position.set(-2, 5, 9);   // relevé avant : la lumière venant du nord, on débouche les faces côté joueur
   scene.add(contre);
 
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
