@@ -1409,8 +1409,8 @@ function construireScene(){
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(1024, 1024);
   soleil.shadow.bias = -0.0004;
-  soleil.shadow.camera.left = -8; soleil.shadow.camera.right = 8;
-  soleil.shadow.camera.top = 8;   soleil.shadow.camera.bottom = -8;
+  soleil.shadow.camera.left = -11; soleil.shadow.camera.right = 11;
+  soleil.shadow.camera.top = 11;   soleil.shadow.camera.bottom = -11;
   scene.add(soleil);
   // Contre-jour discret : modèle les volumes sans écraser les ombres
   const contre = new T.DirectionalLight(0xFFE9D0, 0.1);
@@ -1492,21 +1492,26 @@ function construireScene(){
     MAT.alu
   );
   cadre.rotation.x = -Math.PI / 2;
-  cadre.position.y = 0.07;   // affleurant : dessus du cadre = dessus des dalles
+  cadre.position.y = 0.05;   // 2 mm sous le nu des dalles : juste un filet d'ombre
   cadre.receiveShadow = true; cadre.castShadow = true;
   scene.add(cadre);
 
   // Coordonnées gravées dans le cadre : lettres côté joueur, chiffres à gauche
   function etiquette(txt, x, z){
-    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
     const cx = cv.getContext('2d');
-    cx.fillStyle = '#3A3833';
-    cx.font = '700 40px "Avenir Next", Helvetica, Arial, sans-serif';
+    cx.fillStyle = '#33312C';
+    cx.font = '700 84px "Avenir Next", Helvetica, Arial, sans-serif';
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
-    cx.fillText(txt, 32, 35);
+    cx.fillText(txt, 64, 70);
+    const tex = new T.CanvasTexture(cv);
+    tex.encoding = T.sRGBEncoding;
+    if(renderer.capabilities && renderer.capabilities.getMaxAnisotropy){
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    }
     const m = new T.Mesh(
       new T.PlaneGeometry(0.34, 0.34),
-      new T.MeshBasicMaterial({ map: new T.CanvasTexture(cv), transparent: true })
+      new T.MeshBasicMaterial({ map: tex, transparent: true })
     );
     m.rotation.x = -Math.PI / 2;
     m.position.set(x, 0.078, z);
@@ -1519,6 +1524,7 @@ function construireScene(){
   const socle = new T.Mesh(boiteAdoucie(9.1, 0.4, 9.1, 0.03), MAT.socle);
   socle.position.y = -0.27;
   socle.receiveShadow = true;
+  socle.castShadow = true;
   scene.add(socle);
 
   // La table invisible : l'objet porte son ombre au sol — c'est elle qui donne le poids
@@ -1638,9 +1644,9 @@ function tailler3D(){
   const aspect = w / h;
   trois.camera.aspect = aspect;
   // La caméra recule si l'écran est étroit, pour ne jamais couper le plateau
-  const d = aspect >= 1.05 ? 11.6 : Math.min(17, 11.6 / aspect * 1.02);
-  trois.camera.position.set(0, d * 0.95, d * 0.86);
-  trois.camera.lookAt(0, -1.75, -0.3);
+  const d = aspect >= 1.05 ? 10.9 : Math.min(16, 10.9 / aspect * 1.02);
+  trois.camera.position.set(0, d * 1.08, d * 0.76);
+  trois.camera.lookAt(0, -1.55, -0.2);
   trois.camera.updateProjectionMatrix();
 }
 
