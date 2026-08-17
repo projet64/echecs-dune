@@ -1512,8 +1512,10 @@ function construireScene(){
     m.position.set(x, 0.078, z);
     scene.add(m);
   }
-  for(let f = 0; f < 8; f++) etiquette(String.fromCharCode(97 + f), 3.5 - f, 4.12);
-  for(let r = 1; r <= 8; r++) etiquette(String(r), -4.12, r - 4.5);
+  try{
+    for(let f = 0; f < 8; f++) etiquette(String.fromCharCode(97 + f), 3.5 - f, 4.12);
+    for(let r = 1; r <= 8; r++) etiquette(String(r), -4.12, r - 4.5);
+  }catch(eEtiq){ console.log('étiquettes :', eEtiq); }
   const socle = new T.Mesh(boiteAdoucie(9.1, 0.4, 9.1, 0.03), MAT.socle);
   socle.position.y = -0.27;
   socle.receiveShadow = true;
@@ -1587,7 +1589,8 @@ function construireScene(){
     if(nom) toucher3D(nom);
   }, { passive:true });
 
-  // ----- Nuancier provisoire : curseurs de réglage en direct -----
+  // ----- Nuancier provisoire : curseurs de réglage en direct (non bloquant) -----
+  try{
   const nuancier = document.createElement('div');
   nuancier.id = 'regl3d';
   nuancier.style.cssText = 'position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(247,245,240,.95);border:1px solid #111;padding:10px 12px;font:11px "Avenir Next",Helvetica,sans-serif;color:#111;width:216px;';
@@ -1619,6 +1622,7 @@ function construireScene(){
   };
   nuancier.addEventListener('input', majReglages);
   majReglages();
+  }catch(eNuancier){ console.log('nuancier :', eNuancier); }
 
   renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
@@ -1726,7 +1730,9 @@ async function basculerVue(forcer){
     }catch(e){
       mode3D = false;
       $('btnVue').textContent = '3D';
-      $('coach').innerHTML = '<p class="erreur">La 3D n\'a pas pu se charger (connexion requise au premier passage). On reste en 2D.</p>';
+      $('coach').innerHTML = '<p class="erreur">La 3D n\'a pas pu se charger — '
+        + String(e && e.message ? e.message : e).replace(/</g,'&lt;').slice(0, 200)
+        + '</p><p class="chiffres">Recopie-moi ce message tel quel.</p>';
       return;
     }
   }else{
