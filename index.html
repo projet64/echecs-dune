@@ -1515,7 +1515,7 @@ function construireScene(){
   try{
     for(let f = 0; f < 8; f++) etiquette(String.fromCharCode(97 + f), 3.5 - f, 4.12);
     for(let r = 1; r <= 8; r++) etiquette(String(r), -4.12, r - 4.5);
-  }catch(eEtiq){ console.log('étiquettes :', eEtiq); }
+  }catch(eEtiq){ window.__err3d = 'étiquettes — ' + (eEtiq && eEtiq.message ? eEtiq.message : eEtiq); }
   const socle = new T.Mesh(boiteAdoucie(9.1, 0.4, 9.1, 0.03), MAT.socle);
   socle.position.y = -0.27;
   socle.receiveShadow = true;
@@ -1622,7 +1622,7 @@ function construireScene(){
   };
   nuancier.addEventListener('input', majReglages);
   majReglages();
-  }catch(eNuancier){ console.log('nuancier :', eNuancier); }
+  }catch(eNuancier){ window.__err3d = 'nuancier — ' + (eNuancier && eNuancier.message ? eNuancier.message : eNuancier); }
 
   renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
@@ -1727,6 +1727,11 @@ async function basculerVue(forcer){
       tailler3D();
       synchro3D();
       $('btnVue').textContent = '2D';
+      if(window.__err3d){
+        $('coach').innerHTML = '<p class="chiffres">Note technique 3D : '
+          + String(window.__err3d).replace(/</g,'&lt;').slice(0, 220)
+          + '</p><p class="vide">Le jeu fonctionne — recopie-moi juste cette note.</p>';
+      }
     }catch(e){
       mode3D = false;
       $('btnVue').textContent = '3D';
