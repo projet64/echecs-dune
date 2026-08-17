@@ -1382,6 +1382,25 @@ function construireScene(){
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
   zone.appendChild(renderer.domElement);
+  renderer.outputEncoding = T.sRGBEncoding;
+  renderer.toneMapping = T.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.06;
+
+  // Environnement d'atelier : dôme doux, baie lumineuse, sol sombre —
+  // ce que les métaux et les satinés vont refléter. Sans lui, tout reste plastique.
+  const pmrem = new T.PMREMGenerator(renderer);
+  const atelier = new T.Scene();
+  atelier.add(new T.Mesh(new T.SphereGeometry(30, 16, 12), new T.MeshBasicMaterial({ color:0xF2F0E9, side:T.BackSide })));
+  const panneau = (w, h, x, y, z, c) => {
+    const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ color:c, side:T.DoubleSide }));
+    m.position.set(x, y, z); m.lookAt(0, 0, 0); atelier.add(m);
+  };
+  panneau(16, 10, 10, 12, 7, 0xFFFFFF);   // grande baie principale
+  panneau(9, 6, -10, 8, -6, 0xFFEFD8);    // rappel chaud opposé
+  const solEnv = new T.Mesh(new T.PlaneGeometry(60, 60), new T.MeshBasicMaterial({ color:0x55524B }));
+  solEnv.rotation.x = -Math.PI / 2; solEnv.position.y = -8; atelier.add(solEnv);
+  scene.environment = pmrem.fromScene(atelier, 0.05).texture;
+  pmrem.dispose();
 
   // Lumière d'atelier : douce, latérale, ombres tendres
   scene.add(new T.AmbientLight(0xffffff, 0.42));
@@ -1390,6 +1409,7 @@ function construireScene(){
   soleil.position.set(6, 12, 5);
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(1024, 1024);
+  soleil.shadow.bias = -0.0004;
   soleil.shadow.camera.left = -8; soleil.shadow.camera.right = 8;
   soleil.shadow.camera.top = 8;   soleil.shadow.camera.bottom = -8;
   scene.add(soleil);
@@ -1400,12 +1420,12 @@ function construireScene(){
 
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
   const MAT = {
-    claire: new T.MeshStandardMaterial({ color:0xF0EBDF, roughness:0.62 }),         // calcaire adouci, léger satiné
-    foncee: new T.MeshStandardMaterial({ color:0x63635C, roughness:0.55 }),         // basalte adouci
-    alu:    new T.MeshPhongMaterial({ color:0xD2D2CD, specular:0xFFFFFF, shininess:90 }), // alu brossé qui accroche
-    socle:  new T.MeshStandardMaterial({ color:0x3E3E39, roughness:0.5, metalness:0.2 }),
-    blanc:  new T.MeshStandardMaterial({ color:0xEDE6D6, roughness:0.42 }),         // blanc cassé crème, satiné
-    noir:   new T.MeshStandardMaterial({ color:0x1D1D1C, roughness:0.4 }),
+    claire: new T.MeshStandardMaterial({ color:0xEDE8DB, roughness:0.55 }),   // calcaire adouci satiné
+    foncee: new T.MeshStandardMaterial({ color:0x5C5C55, roughness:0.5 }),    // basalte adouci
+    alu:    new T.MeshStandardMaterial({ color:0xD8D8D3, roughness:0.26, metalness:0.92 }), // reflète l'atelier
+    socle:  new T.MeshStandardMaterial({ color:0x36362F, roughness:0.45, metalness:0.3 }),
+    blanc:  new T.MeshStandardMaterial({ color:0xE9E2D1, roughness:0.38 }),   // crème satiné
+    noir:   new T.MeshStandardMaterial({ color:0x171716, roughness:0.35 }),
     jaune:  new T.MeshBasicMaterial({ color:0xE9CA55, side:T.DoubleSide }),
     rouge:  new T.MeshBasicMaterial({ color:0xB03A2E, side:T.DoubleSide })
   };
@@ -1473,10 +1493,10 @@ function construireScene(){
     barre: boiteAdoucie(0.2, 0.82, 0.26, 0.035),
     Lv:    boiteAdoucie(0.26, 0.72, 0.3, 0.035),
     Lp:    boiteAdoucie(0.54, 0.26, 0.3, 0.035),
-    point: new T.CircleGeometry(0.12, 24),
-    anneau:new T.RingGeometry(0.30, 0.40, 32),
-    cadreSel: new T.RingGeometry(0.42, 0.475, 32),
-    coin:  new T.PlaneGeometry(0.17, 0.17)
+    point: new T.CircleGeometry(0.16, 24),
+    anneau:new T.RingGeometry(0.30, 0.43, 32),
+    cadreSel: new T.RingGeometry(0.43, 0.50, 32),
+    coin:  new T.PlaneGeometry(0.2, 0.2)
   };
 
   function piece3D(type, couleur){
@@ -1563,9 +1583,10 @@ function synchro3D(){
   const plat = (geoX, mat, nom, dx, dz) => {
     const m = new T.Mesh(geoX, mat);
     const pos = posCase(nom);
-    strate += 0.0012;
+    strate += 0.0015;
     m.rotation.x = -Math.PI / 2;
-    m.position.set(pos.x + (dx || 0), 0.076 + strate, pos.z + (dz || 0));
+    m.position.set(pos.x + (dx || 0), 0.095 + strate, pos.z + (dz || 0));
+    m.renderOrder = 4;
     trois.groupeMarques.add(m);
   };
   if(dernierCoup){
