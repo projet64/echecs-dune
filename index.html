@@ -1384,30 +1384,53 @@ function construireScene(){
   zone.appendChild(renderer.domElement);
 
   // Lumière d'atelier : douce, latérale, ombres tendres
-  scene.add(new T.AmbientLight(0xffffff, 0.58));
-  const soleil = new T.DirectionalLight(0xFFF6E4, 0.75);
+  scene.add(new T.AmbientLight(0xffffff, 0.42));
+  scene.add(new T.HemisphereLight(0xFFF8EC, 0x8A877E, 0.38));
+  const soleil = new T.DirectionalLight(0xFFF4E0, 0.72);
   soleil.position.set(6, 12, 5);
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(1024, 1024);
   soleil.shadow.camera.left = -8; soleil.shadow.camera.right = 8;
   soleil.shadow.camera.top = 8;   soleil.shadow.camera.bottom = -8;
   scene.add(soleil);
+  // Contre-jour discret : modèle les volumes sans écraser les ombres
+  const contre = new T.DirectionalLight(0xFFFFFF, 0.22);
+  contre.position.set(-5, 6, -4);
+  scene.add(contre);
 
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
   const MAT = {
-    claire: new T.MeshStandardMaterial({ color:0xF2EFE7, roughness:0.92 }),
-    foncee: new T.MeshStandardMaterial({ color:0x5E5E58, roughness:0.88 }),
-    alu:    new T.MeshStandardMaterial({ color:0xC9C9C4, roughness:0.38, metalness:0.85 }),
-    socle:  new T.MeshStandardMaterial({ color:0x45453F, roughness:0.62, metalness:0.25 }),
-    blanc:  new T.MeshStandardMaterial({ color:0xF5F1E8, roughness:0.55 }),
-    noir:   new T.MeshStandardMaterial({ color:0x1B1B1B, roughness:0.5 }),
+    claire: new T.MeshStandardMaterial({ color:0xF0EBDF, roughness:0.62 }),         // calcaire adouci, léger satiné
+    foncee: new T.MeshStandardMaterial({ color:0x63635C, roughness:0.55 }),         // basalte adouci
+    alu:    new T.MeshPhongMaterial({ color:0xD2D2CD, specular:0xFFFFFF, shininess:90 }), // alu brossé qui accroche
+    socle:  new T.MeshStandardMaterial({ color:0x3E3E39, roughness:0.5, metalness:0.2 }),
+    blanc:  new T.MeshStandardMaterial({ color:0xEDE6D6, roughness:0.42 }),         // blanc cassé crème, satiné
+    noir:   new T.MeshStandardMaterial({ color:0x1D1D1C, roughness:0.4 }),
     jaune:  new T.MeshBasicMaterial({ color:0xE9CA55, side:T.DoubleSide }),
     rouge:  new T.MeshBasicMaterial({ color:0xB03A2E, side:T.DoubleSide })
   };
 
+  // Boîte aux arêtes adoucies : congé discret sur tous les chants
+  function boiteAdoucie(w, h, prof, r){
+    r = Math.min(r, w/2 - 0.001, h/2 - 0.001, prof/2 - 0.001);
+    const x = w/2 - r, y = h/2 - r;
+    const f = new T.Shape();
+    f.moveTo(-x, -h/2);
+    f.lineTo(x, -h/2);  f.absarc(x, -y, r, -Math.PI/2, 0, false);
+    f.lineTo(w/2, y);   f.absarc(x, y, r, 0, Math.PI/2, false);
+    f.lineTo(-x, h/2);  f.absarc(-x, y, r, Math.PI/2, Math.PI, false);
+    f.lineTo(-w/2, -y); f.absarc(-x, -y, r, Math.PI, 1.5*Math.PI, false);
+    const g = new T.ExtrudeGeometry(f, {
+      depth: prof - 2*r, bevelEnabled: true,
+      bevelThickness: r, bevelSize: r, bevelSegments: 2, curveSegments: 4
+    });
+    g.center();
+    return g;
+  }
+
   // ---- Damier : 64 dalles de pierre ----
   const casesMesh = [];
-  const geoCase = new T.BoxGeometry(1, 0.14, 1);
+  const geoCase = boiteAdoucie(1, 0.14, 1, 0.018);
   for(let f = 0; f < 8; f++) for(let r = 1; r <= 8; r++){
     const nom = String.fromCharCode(97 + f) + r;
     const sombre = (f + r) % 2 === 1;   // a1 sombre, comme il se doit
@@ -1428,28 +1451,28 @@ function construireScene(){
     { g:[0.5, 0.2, 8.0], p:[-4.25, 0.01, 0] }
   ];
   cadres.forEach(c => {
-    const m = new T.Mesh(new T.BoxGeometry(c.g[0], c.g[1], c.g[2]), MAT.alu);
+    const m = new T.Mesh(boiteAdoucie(c.g[0], c.g[1], c.g[2], 0.035), MAT.alu);
     m.position.set(c.p[0], c.p[1], c.p[2]);
     m.receiveShadow = true; m.castShadow = true;
     scene.add(m);
   });
-  const socle = new T.Mesh(new T.BoxGeometry(9.9, 0.55, 9.9), MAT.socle);
+  const socle = new T.Mesh(boiteAdoucie(9.9, 0.55, 9.9, 0.05), MAT.socle);
   socle.position.y = -0.36;
   socle.receiveShadow = true;
   scene.add(socle);
 
   // ---- Les six volumes Hartwig (géométries partagées) ----
   const geo = {
-    base:  new T.BoxGeometry(0.6, 0.09, 0.6),
-    cube:  new T.BoxGeometry(0.58, 0.58, 0.58),
+    base:  boiteAdoucie(0.6, 0.09, 0.6, 0.022),
+    cube:  boiteAdoucie(0.58, 0.58, 0.58, 0.045),
     sphP:  new T.SphereGeometry(0.21, 24, 18),
     sphQ:  new T.SphereGeometry(0.27, 28, 20),
-    colQ:  new T.BoxGeometry(0.3, 0.5, 0.3),
-    colK:  new T.BoxGeometry(0.3, 0.66, 0.3),
+    colQ:  boiteAdoucie(0.3, 0.5, 0.3, 0.035),
+    colK:  boiteAdoucie(0.3, 0.66, 0.3, 0.035),
     los:   new T.OctahedronGeometry(0.27),
-    barre: new T.BoxGeometry(0.2, 0.82, 0.26),
-    Lv:    new T.BoxGeometry(0.26, 0.72, 0.3),
-    Lp:    new T.BoxGeometry(0.54, 0.26, 0.3),
+    barre: boiteAdoucie(0.2, 0.82, 0.26, 0.035),
+    Lv:    boiteAdoucie(0.26, 0.72, 0.3, 0.035),
+    Lp:    boiteAdoucie(0.54, 0.26, 0.3, 0.035),
     point: new T.CircleGeometry(0.12, 24),
     anneau:new T.RingGeometry(0.30, 0.40, 32),
     cadreSel: new T.RingGeometry(0.42, 0.475, 32),
@@ -1512,9 +1535,9 @@ function tailler3D(){
   const aspect = w / h;
   trois.camera.aspect = aspect;
   // La caméra recule si l'écran est étroit, pour ne jamais couper le plateau
-  const d = aspect >= 1.05 ? 11.4 : Math.min(16, 11.4 / aspect * 1.02);
-  trois.camera.position.set(0, d * 0.76, d);
-  trois.camera.lookAt(0, -0.3, -1.1);
+  const d = aspect >= 1.05 ? 11.6 : Math.min(17, 11.6 / aspect * 1.02);
+  trois.camera.position.set(0, d * 0.95, d * 0.86);
+  trois.camera.lookAt(0, -1.05, -0.35);
   trois.camera.updateProjectionMatrix();
 }
 
