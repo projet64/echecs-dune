@@ -1384,7 +1384,7 @@ function construireScene(){
   zone.appendChild(renderer.domElement);
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.06;
+  renderer.toneMappingExposure = 0.98;
 
   // Environnement d'atelier : dôme doux, baie lumineuse, sol sombre —
   // ce que les métaux et les satinés vont refléter. Sans lui, tout reste plastique.
@@ -1403,9 +1403,8 @@ function construireScene(){
   pmrem.dispose();
 
   // Lumière d'atelier : douce, latérale, ombres tendres
-  scene.add(new T.AmbientLight(0xffffff, 0.42));
-  scene.add(new T.HemisphereLight(0xFFF8EC, 0x8A877E, 0.38));
-  const soleil = new T.DirectionalLight(0xFFF4E0, 0.72);
+  scene.add(new T.AmbientLight(0xffffff, 0.2));
+  const soleil = new T.DirectionalLight(0xFFF4E0, 0.9);
   soleil.position.set(6, 12, 5);
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(1024, 1024);
@@ -1414,21 +1413,28 @@ function construireScene(){
   soleil.shadow.camera.top = 8;   soleil.shadow.camera.bottom = -8;
   scene.add(soleil);
   // Contre-jour discret : modèle les volumes sans écraser les ombres
-  const contre = new T.DirectionalLight(0xFFFFFF, 0.22);
+  const contre = new T.DirectionalLight(0xFFFFFF, 0.14);
   contre.position.set(-5, 6, -4);
   scene.add(contre);
 
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
   const MAT = {
-    claire: new T.MeshStandardMaterial({ color:0xEDE8DB, roughness:0.55 }),   // calcaire adouci satiné
-    foncee: new T.MeshStandardMaterial({ color:0x5C5C55, roughness:0.5 }),    // basalte adouci
-    alu:    new T.MeshStandardMaterial({ color:0xD8D8D3, roughness:0.26, metalness:0.92 }), // reflète l'atelier
-    socle:  new T.MeshStandardMaterial({ color:0x36362F, roughness:0.45, metalness:0.3 }),
-    blanc:  new T.MeshStandardMaterial({ color:0xE9E2D1, roughness:0.38 }),   // crème satiné
-    noir:   new T.MeshStandardMaterial({ color:0x171716, roughness:0.35 }),
+    claire: new T.MeshStandardMaterial({ color:0xE9E3D4, roughness:0.6 }),    // calcaire adouci satiné
+    foncee: new T.MeshStandardMaterial({ color:0x52524B, roughness:0.55 }),   // basalte adouci
+    alu:    new T.MeshStandardMaterial({ color:0xCFCFCA, roughness:0.3, metalness:0.95 }),
+    socle:  new T.MeshStandardMaterial({ color:0x2E2E29, roughness:0.5, metalness:0.25 }),
+    blanc:  new T.MeshStandardMaterial({ color:0xE6DECB, roughness:0.45 }),   // crème satiné
+    noir:   new T.MeshStandardMaterial({ color:0x141413, roughness:0.42 }),
     jaune:  new T.MeshBasicMaterial({ color:0xE9CA55, side:T.DoubleSide }),
     rouge:  new T.MeshBasicMaterial({ color:0xB03A2E, side:T.DoubleSide })
   };
+  // Dose de reflet par matière : le métal boit l'atelier, la pierre l'effleure, le noir reste noir
+  MAT.claire.envMapIntensity = 0.4;
+  MAT.foncee.envMapIntensity = 0.35;
+  MAT.alu.envMapIntensity    = 1.15;
+  MAT.socle.envMapIntensity  = 0.45;
+  MAT.blanc.envMapIntensity  = 0.5;
+  MAT.noir.envMapIntensity   = 0.35;
 
   // Boîte aux arêtes adoucies : congé discret sur tous les chants
   function boiteAdoucie(w, h, prof, r){
