@@ -1384,27 +1384,27 @@ function construireScene(){
   zone.appendChild(renderer.domElement);
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.98;
+  renderer.toneMappingExposure = 0.9;
 
   // Environnement d'atelier : dôme doux, baie lumineuse, sol sombre —
   // ce que les métaux et les satinés vont refléter. Sans lui, tout reste plastique.
   const pmrem = new T.PMREMGenerator(renderer);
   const atelier = new T.Scene();
-  atelier.add(new T.Mesh(new T.SphereGeometry(30, 16, 12), new T.MeshBasicMaterial({ color:0xF2F0E9, side:T.BackSide })));
+  atelier.add(new T.Mesh(new T.SphereGeometry(30, 16, 12), new T.MeshBasicMaterial({ color:0xEFE9DC, side:T.BackSide })));
   const panneau = (w, h, x, y, z, c) => {
     const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ color:c, side:T.DoubleSide }));
     m.position.set(x, y, z); m.lookAt(0, 0, 0); atelier.add(m);
   };
-  panneau(16, 10, 10, 12, 7, 0xFFFFFF);   // grande baie principale
-  panneau(9, 6, -10, 8, -6, 0xFFEFD8);    // rappel chaud opposé
-  const solEnv = new T.Mesh(new T.PlaneGeometry(60, 60), new T.MeshBasicMaterial({ color:0x55524B }));
+  panneau(16, 10, 10, 12, 7, 0xFFF1DC);   // grande baie, lumière du soir
+  panneau(9, 6, -10, 8, -6, 0xFFDFB8);    // rappel très chaud, presque bougie
+  const solEnv = new T.Mesh(new T.PlaneGeometry(60, 60), new T.MeshBasicMaterial({ color:0x4E483F }));
   solEnv.rotation.x = -Math.PI / 2; solEnv.position.y = -8; atelier.add(solEnv);
   scene.environment = pmrem.fromScene(atelier, 0.05).texture;
   pmrem.dispose();
 
   // Lumière d'atelier : douce, latérale, ombres tendres
-  scene.add(new T.AmbientLight(0xffffff, 0.2));
-  const soleil = new T.DirectionalLight(0xFFF4E0, 0.9);
+  scene.add(new T.AmbientLight(0xFFF2E0, 0.16));
+  const soleil = new T.DirectionalLight(0xFFE7C2, 0.62);
   soleil.position.set(6, 12, 5);
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(1024, 1024);
@@ -1413,25 +1413,25 @@ function construireScene(){
   soleil.shadow.camera.top = 8;   soleil.shadow.camera.bottom = -8;
   scene.add(soleil);
   // Contre-jour discret : modèle les volumes sans écraser les ombres
-  const contre = new T.DirectionalLight(0xFFFFFF, 0.14);
+  const contre = new T.DirectionalLight(0xFFE9D0, 0.1);
   contre.position.set(-5, 6, -4);
   scene.add(contre);
 
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
   const MAT = {
-    claire: new T.MeshStandardMaterial({ color:0xE9E3D4, roughness:0.6 }),    // calcaire adouci satiné
-    foncee: new T.MeshStandardMaterial({ color:0x52524B, roughness:0.55 }),   // basalte adouci
-    alu:    new T.MeshStandardMaterial({ color:0xCFCFCA, roughness:0.3, metalness:0.95 }),
-    socle:  new T.MeshStandardMaterial({ color:0x2E2E29, roughness:0.5, metalness:0.25 }),
-    blanc:  new T.MeshStandardMaterial({ color:0xE6DECB, roughness:0.45 }),   // crème satiné
-    noir:   new T.MeshStandardMaterial({ color:0x141413, roughness:0.42 }),
+    claire: new T.MeshStandardMaterial({ color:0xEAE2CE, roughness:0.6 }),    // calcaire chaud satiné
+    foncee: new T.MeshStandardMaterial({ color:0x59544A, roughness:0.55 }),   // basalte brun-gris
+    alu:    new T.MeshStandardMaterial({ color:0xCFCBC2, roughness:0.3, metalness:0.95 }),
+    socle:  new T.MeshStandardMaterial({ color:0x333028, roughness:0.5, metalness:0.25 }),
+    blanc:  new T.MeshStandardMaterial({ color:0xE8DDC4, roughness:0.45 }),   // crème chaud satiné
+    noir:   new T.MeshStandardMaterial({ color:0x171511, roughness:0.42 }),
     jaune:  new T.MeshBasicMaterial({ color:0xE9CA55, side:T.DoubleSide }),
     rouge:  new T.MeshBasicMaterial({ color:0xB03A2E, side:T.DoubleSide })
   };
   // Dose de reflet par matière : le métal boit l'atelier, la pierre l'effleure, le noir reste noir
   MAT.claire.envMapIntensity = 0.4;
   MAT.foncee.envMapIntensity = 0.35;
-  MAT.alu.envMapIntensity    = 1.15;
+  MAT.alu.envMapIntensity    = 1.0;
   MAT.socle.envMapIntensity  = 0.45;
   MAT.blanc.envMapIntensity  = 0.5;
   MAT.noir.envMapIntensity   = 0.35;
@@ -1456,7 +1456,7 @@ function construireScene(){
 
   // ---- Damier : 64 dalles de pierre ----
   const casesMesh = [];
-  const geoCase = boiteAdoucie(1, 0.14, 1, 0.018);
+  const geoCase = boiteAdoucie(1, 0.14, 1, 0.01);
   for(let f = 0; f < 8; f++) for(let r = 1; r <= 8; r++){
     const nom = String.fromCharCode(97 + f) + r;
     const sombre = (f + r) % 2 === 1;   // a1 sombre, comme il se doit
@@ -1477,28 +1477,28 @@ function construireScene(){
     { g:[0.5, 0.2, 8.0], p:[-4.25, 0.01, 0] }
   ];
   cadres.forEach(c => {
-    const m = new T.Mesh(boiteAdoucie(c.g[0], c.g[1], c.g[2], 0.035), MAT.alu);
+    const m = new T.Mesh(boiteAdoucie(c.g[0], c.g[1], c.g[2], 0.02), MAT.alu);
     m.position.set(c.p[0], c.p[1], c.p[2]);
     m.receiveShadow = true; m.castShadow = true;
     scene.add(m);
   });
-  const socle = new T.Mesh(boiteAdoucie(9.9, 0.55, 9.9, 0.05), MAT.socle);
+  const socle = new T.Mesh(boiteAdoucie(9.9, 0.55, 9.9, 0.03), MAT.socle);
   socle.position.y = -0.36;
   socle.receiveShadow = true;
   scene.add(socle);
 
   // ---- Les six volumes Hartwig (géométries partagées) ----
   const geo = {
-    base:  boiteAdoucie(0.6, 0.09, 0.6, 0.022),
-    cube:  boiteAdoucie(0.58, 0.58, 0.58, 0.045),
+    base:  boiteAdoucie(0.6, 0.09, 0.6, 0.012),
+    cube:  boiteAdoucie(0.58, 0.58, 0.58, 0.025),
     sphP:  new T.SphereGeometry(0.21, 24, 18),
     sphQ:  new T.SphereGeometry(0.27, 28, 20),
-    colQ:  boiteAdoucie(0.3, 0.5, 0.3, 0.035),
-    colK:  boiteAdoucie(0.3, 0.66, 0.3, 0.035),
+    colQ:  boiteAdoucie(0.3, 0.5, 0.3, 0.02),
+    colK:  boiteAdoucie(0.3, 0.66, 0.3, 0.02),
     los:   new T.OctahedronGeometry(0.27),
-    barre: boiteAdoucie(0.2, 0.82, 0.26, 0.035),
-    Lv:    boiteAdoucie(0.26, 0.72, 0.3, 0.035),
-    Lp:    boiteAdoucie(0.54, 0.26, 0.3, 0.035),
+    barre: boiteAdoucie(0.2, 0.82, 0.26, 0.02),
+    Lv:    boiteAdoucie(0.26, 0.72, 0.3, 0.02),
+    Lp:    boiteAdoucie(0.54, 0.26, 0.3, 0.02),
     point: new T.CircleGeometry(0.16, 24),
     anneau:new T.RingGeometry(0.30, 0.43, 32),
     cadreSel: new T.RingGeometry(0.43, 0.50, 32),
@@ -1563,7 +1563,7 @@ function tailler3D(){
   // La caméra recule si l'écran est étroit, pour ne jamais couper le plateau
   const d = aspect >= 1.05 ? 11.6 : Math.min(17, 11.6 / aspect * 1.02);
   trois.camera.position.set(0, d * 0.95, d * 0.86);
-  trois.camera.lookAt(0, -1.05, -0.35);
+  trois.camera.lookAt(0, -1.75, -0.3);
   trois.camera.updateProjectionMatrix();
 }
 
