@@ -1420,7 +1420,7 @@ function construireScene(){
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
   const MAT = {
     claire: new T.MeshStandardMaterial({ color:0xECE7DA, roughness:0.6 }),    // calcaire satiné
-    foncee: new T.MeshStandardMaterial({ color:0x56524B, roughness:0.55 }),   // basalte
+    foncee: new T.MeshStandardMaterial({ color:0x45413A, roughness:0.55 }),   // basalte
     alu:    new T.MeshStandardMaterial({ color:0xCFCBC2, roughness:0.3, metalness:0.95 }),
     socle:  new T.MeshStandardMaterial({ color:0x242424, roughness:0.42, metalness:0.4 }),  // fonte d'alu anthracite
     blanc:  new T.MeshPhysicalMaterial({ color:0xE9E2D0, roughness:0.42, clearcoat:0.35, clearcoatRoughness:0.25 }), // crème laqué doux
@@ -1456,14 +1456,16 @@ function construireScene(){
 
   // ---- Damier : 64 dalles de pierre ----
   const casesMesh = [];
+  const casesInfo = [];
   const geoCase = boiteAdoucie(1, 0.14, 1, 0.01);
   for(let f = 0; f < 8; f++) for(let r = 1; r <= 8; r++){
     const nom = String.fromCharCode(97 + f) + r;
     const sombre = (f + r) % 2 === 1;   // a1 sombre, comme il se doit
     // Chaque dalle a sa nuance propre : la pierre n'est jamais uniforme
     const matCase = (sombre ? MAT.foncee : MAT.claire).clone();
-    matCase.color.offsetHSL(0, 0, (Math.random() - 0.5) * 0.04);
-    matCase.envMapIntensity = sombre ? 0.35 : 0.4;
+    const delta = (Math.random() - 0.5) * 0.04;
+    matCase.color.offsetHSL(0, 0, delta);
+    matCase.envMapIntensity = sombre ? 0.25 : 0.4;
     const m = new T.Mesh(geoCase, matCase);
     const pos = posCase(nom);
     m.position.set(pos.x, 0, pos.z);
@@ -1471,6 +1473,7 @@ function construireScene(){
     m.userData.case = nom;
     scene.add(m);
     casesMesh.push(m);
+    casesInfo.push({ mesh: m, sombre, delta });
   }
 
   // ---- Châssis aluminium (13 mm à l'échelle) + socle épais ----
@@ -1489,9 +1492,28 @@ function construireScene(){
     MAT.alu
   );
   cadre.rotation.x = -Math.PI / 2;
-  cadre.position.y = 0.09;
+  cadre.position.y = 0.07;   // affleurant : dessus du cadre = dessus des dalles
   cadre.receiveShadow = true; cadre.castShadow = true;
   scene.add(cadre);
+
+  // Coordonnées gravées dans le cadre : lettres côté joueur, chiffres à gauche
+  function etiquette(txt, x, z){
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#514E47';
+    cx.font = '600 34px "Avenir Next", Helvetica, Arial, sans-serif';
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(txt, 32, 35);
+    const m = new T.Mesh(
+      new T.PlaneGeometry(0.3, 0.3),
+      new T.MeshBasicMaterial({ map: new T.CanvasTexture(cv), transparent: true })
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, 0.078, z);
+    scene.add(m);
+  }
+  for(let f = 0; f < 8; f++) etiquette(String.fromCharCode(97 + f), 3.5 - f, 4.12);
+  for(let r = 1; r <= 8; r++) etiquette(String(r), -4.12, r - 4.5);
   const socle = new T.Mesh(boiteAdoucie(9.1, 0.4, 9.1, 0.03), MAT.socle);
   socle.position.y = -0.27;
   socle.receiveShadow = true;
@@ -1564,6 +1586,39 @@ function construireScene(){
     const nom = caseDepuisPos(pt.x, pt.z);
     if(nom) toucher3D(nom);
   }, { passive:true });
+
+  // ----- Nuancier provisoire : curseurs de réglage en direct -----
+  const nuancier = document.createElement('div');
+  nuancier.id = 'regl3d';
+  nuancier.style.cssText = 'position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(247,245,240,.95);border:1px solid #111;padding:10px 12px;font:11px "Avenir Next",Helvetica,sans-serif;color:#111;width:216px;';
+  nuancier.innerHTML = '<div style="font-weight:700;letter-spacing:1.5px;font-size:10px;margin-bottom:6px;">RÉGLAGES · provisoire</div>';
+  const ligneR = (id, nom, val) => {
+    const d = document.createElement('div');
+    d.style.cssText = 'display:flex;align-items:center;gap:6px;margin:5px 0;';
+    d.innerHTML = '<span style="width:62px;">' + nom + '</span>'
+      + '<input type="range" id="' + id + '" min="0" max="100" value="' + val + '" style="flex:1;">'
+      + '<b id="' + id + 'v" style="width:24px;text-align:right;">' + val + '</b>';
+    nuancier.appendChild(d);
+  };
+  ligneR('rgBasalte', 'Basalte', 55);
+  ligneR('rgChaleur', 'Chaleur', 30);
+  ligneR('rgExpo', 'Lumière', 44);
+  ligneR('rgSol', 'Ombre sol', 50);
+  zone.appendChild(panneau);
+  const majReglages = () => {
+    const v = (id) => +nuancier.querySelector('#' + id).value;
+    ['rgBasalte','rgChaleur','rgExpo','rgSol'].forEach(i => nuancier.querySelector('#' + i + 'v').textContent = v(i));
+    const c1 = new T.Color(0x6A655C), c2 = new T.Color(0x26231F);
+    casesInfo.forEach(ci => {
+      if(!ci.sombre) return;
+      ci.mesh.material.color.copy(c1).lerp(c2, v('rgBasalte') / 100).offsetHSL(0, 0, ci.delta);
+    });
+    soleil.color.set(0xFFFFFF).lerp(new T.Color(0xFFD3A0), v('rgChaleur') / 100);
+    renderer.toneMappingExposure = 0.7 + (v('rgExpo') / 100) * 0.5;
+    tapis.material.opacity = (v('rgSol') / 100) * 0.45;
+  };
+  nuancier.addEventListener('input', majReglages);
+  majReglages();
 
   renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
