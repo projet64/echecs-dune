@@ -1405,7 +1405,7 @@ function construireScene(){
   // Lumière d'atelier : douce, latérale, ombres tendres
   scene.add(new T.AmbientLight(0xFFFFFF, 0.13));
   const soleil = new T.DirectionalLight(0xFFEFDC, 0.8);
-  soleil.position.set(3.2, 7.2, -11.5);   // nord-est, vers 13 h, ~32° d'élévation
+  soleil.position.set(-9, 9.2, -6);   // nord-ouest ~40° : l'ombre part vers la droite du plateau, déport réduit
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(2048, 2048);
   soleil.shadow.bias = -0.00005;
@@ -1493,7 +1493,7 @@ function construireScene(){
     MAT.alu
   );
   cadre.rotation.x = -Math.PI / 2;
-  cadre.position.y = 0.05;   // 2 mm sous le nu des dalles : juste un filet d'ombre
+  cadre.position.y = -0.10;  // l'extrusion monte : sommet à 0,05 (2 mm sous les dalles), pied au contact du socle
   cadre.receiveShadow = true; cadre.castShadow = true;
   scene.add(cadre);
 
