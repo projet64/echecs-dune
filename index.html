@@ -1384,27 +1384,27 @@ function construireScene(){
   zone.appendChild(renderer.domElement);
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.9;
+  renderer.toneMappingExposure = 0.92;
 
   // Environnement d'atelier : dôme doux, baie lumineuse, sol sombre —
   // ce que les métaux et les satinés vont refléter. Sans lui, tout reste plastique.
   const pmrem = new T.PMREMGenerator(renderer);
   const atelier = new T.Scene();
-  atelier.add(new T.Mesh(new T.SphereGeometry(30, 16, 12), new T.MeshBasicMaterial({ color:0xEFE9DC, side:T.BackSide })));
+  atelier.add(new T.Mesh(new T.SphereGeometry(30, 16, 12), new T.MeshBasicMaterial({ color:0xF0EDE6, side:T.BackSide })));
   const panneau = (w, h, x, y, z, c) => {
     const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ color:c, side:T.DoubleSide }));
     m.position.set(x, y, z); m.lookAt(0, 0, 0); atelier.add(m);
   };
-  panneau(16, 10, 10, 12, 7, 0xFFF1DC);   // grande baie, lumière du soir
-  panneau(9, 6, -10, 8, -6, 0xFFDFB8);    // rappel très chaud, presque bougie
+  panneau(16, 10, 10, 12, 7, 0xFFF6EA);   // grande baie, lumière du soir
+  panneau(9, 6, -10, 8, -6, 0xFFE8CE);    // rappel chaud, en touche
   const solEnv = new T.Mesh(new T.PlaneGeometry(60, 60), new T.MeshBasicMaterial({ color:0x4E483F }));
   solEnv.rotation.x = -Math.PI / 2; solEnv.position.y = -8; atelier.add(solEnv);
   scene.environment = pmrem.fromScene(atelier, 0.05).texture;
   pmrem.dispose();
 
   // Lumière d'atelier : douce, latérale, ombres tendres
-  scene.add(new T.AmbientLight(0xFFF2E0, 0.16));
-  const soleil = new T.DirectionalLight(0xFFE7C2, 0.62);
+  scene.add(new T.AmbientLight(0xFFFFFF, 0.13));
+  const soleil = new T.DirectionalLight(0xFFEFDC, 0.8);
   soleil.position.set(6, 12, 5);
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(1024, 1024);
@@ -1419,12 +1419,12 @@ function construireScene(){
 
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
   const MAT = {
-    claire: new T.MeshStandardMaterial({ color:0xEAE2CE, roughness:0.6 }),    // calcaire chaud satiné
-    foncee: new T.MeshStandardMaterial({ color:0x59544A, roughness:0.55 }),   // basalte brun-gris
+    claire: new T.MeshStandardMaterial({ color:0xECE7DA, roughness:0.6 }),    // calcaire satiné
+    foncee: new T.MeshStandardMaterial({ color:0x56524B, roughness:0.55 }),   // basalte
     alu:    new T.MeshStandardMaterial({ color:0xCFCBC2, roughness:0.3, metalness:0.95 }),
     socle:  new T.MeshStandardMaterial({ color:0x242424, roughness:0.42, metalness:0.4 }),  // fonte d'alu anthracite
-    blanc:  new T.MeshStandardMaterial({ color:0xE8DDC4, roughness:0.45 }),   // crème chaud satiné
-    noir:   new T.MeshStandardMaterial({ color:0x171511, roughness:0.42 }),
+    blanc:  new T.MeshPhysicalMaterial({ color:0xE9E2D0, roughness:0.42, clearcoat:0.35, clearcoatRoughness:0.25 }), // crème laqué doux
+    noir:   new T.MeshPhysicalMaterial({ color:0x161513, roughness:0.4,  clearcoat:0.4,  clearcoatRoughness:0.25 }),  // noir profond laqué
     jaune:  new T.MeshBasicMaterial({ color:0xE9CA55, side:T.DoubleSide }),
     rouge:  new T.MeshBasicMaterial({ color:0xB03A2E, side:T.DoubleSide })
   };
@@ -1460,7 +1460,11 @@ function construireScene(){
   for(let f = 0; f < 8; f++) for(let r = 1; r <= 8; r++){
     const nom = String.fromCharCode(97 + f) + r;
     const sombre = (f + r) % 2 === 1;   // a1 sombre, comme il se doit
-    const m = new T.Mesh(geoCase, sombre ? MAT.foncee : MAT.claire);
+    // Chaque dalle a sa nuance propre : la pierre n'est jamais uniforme
+    const matCase = (sombre ? MAT.foncee : MAT.claire).clone();
+    matCase.color.offsetHSL(0, 0, (Math.random() - 0.5) * 0.04);
+    matCase.envMapIntensity = sombre ? 0.35 : 0.4;
+    const m = new T.Mesh(geoCase, matCase);
     const pos = posCase(nom);
     m.position.set(pos.x, 0, pos.z);
     m.receiveShadow = true;
@@ -1470,22 +1474,35 @@ function construireScene(){
   }
 
   // ---- Châssis aluminium (13 mm à l'échelle) + socle épais ----
-  const cadres = [
-    { g:[8.56, 0.18, 0.26], p:[0, 0.01,  4.13] },
-    { g:[8.56, 0.18, 0.26], p:[0, 0.01, -4.13] },
-    { g:[0.26, 0.18, 8.0],  p:[ 4.13, 0.01, 0] },
-    { g:[0.26, 0.18, 8.0],  p:[-4.13, 0.01, 0] }
-  ];
-  cadres.forEach(c => {
-    const m = new T.Mesh(boiteAdoucie(c.g[0], c.g[1], c.g[2], 0.02), MAT.alu);
-    m.position.set(c.p[0], c.p[1], c.p[2]);
-    m.receiveShadow = true; m.castShadow = true;
-    scene.add(m);
-  });
-  const socle = new T.Mesh(boiteAdoucie(9.1, 0.5, 9.1, 0.03), MAT.socle);
-  socle.position.y = -0.32;
+  // Châssis monobloc : cadre extrudé d'une seule pièce — aucun joint, arêtes vives d'usinage
+  const formeCadre = new T.Shape();
+  formeCadre.moveTo(-4.24, -4.24); formeCadre.lineTo(4.24, -4.24);
+  formeCadre.lineTo(4.24, 4.24);   formeCadre.lineTo(-4.24, 4.24);
+  formeCadre.closePath();
+  const trouCadre = new T.Path();
+  trouCadre.moveTo(-4.0, -4.0); trouCadre.lineTo(4.0, -4.0);
+  trouCadre.lineTo(4.0, 4.0);   trouCadre.lineTo(-4.0, 4.0);
+  trouCadre.closePath();
+  formeCadre.holes.push(trouCadre);
+  const cadre = new T.Mesh(
+    new T.ExtrudeGeometry(formeCadre, { depth: 0.15, bevelEnabled: false }),
+    MAT.alu
+  );
+  cadre.rotation.x = -Math.PI / 2;
+  cadre.position.y = 0.09;
+  cadre.receiveShadow = true; cadre.castShadow = true;
+  scene.add(cadre);
+  const socle = new T.Mesh(boiteAdoucie(9.1, 0.4, 9.1, 0.03), MAT.socle);
+  socle.position.y = -0.27;
   socle.receiveShadow = true;
   scene.add(socle);
+
+  // La table invisible : l'objet porte son ombre au sol — c'est elle qui donne le poids
+  const tapis = new T.Mesh(new T.PlaneGeometry(50, 50), new T.ShadowMaterial({ opacity: 0.22 }));
+  tapis.rotation.x = -Math.PI / 2;
+  tapis.position.y = -0.475;
+  tapis.receiveShadow = true;
+  scene.add(tapis);
 
   // ---- Les six volumes Hartwig (géométries partagées) ----
   const geo = {
