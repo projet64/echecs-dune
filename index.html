@@ -1407,8 +1407,9 @@ function construireScene(){
   const soleil = new T.DirectionalLight(0xFFEFDC, 0.8);
   soleil.position.set(3.2, 7.2, -11.5);   // nord-est, vers 13 h, ~32° d'élévation
   soleil.castShadow = true;
-  soleil.shadow.mapSize.set(1024, 1024);
-  soleil.shadow.bias = -0.0004;
+  soleil.shadow.mapSize.set(2048, 2048);
+  soleil.shadow.bias = -0.00005;
+  soleil.shadow.normalBias = 0.02;
   soleil.shadow.camera.left = -14; soleil.shadow.camera.right = 14;
   soleil.shadow.camera.top = 14;   soleil.shadow.camera.bottom = -14;
   scene.add(soleil);
@@ -1521,8 +1522,8 @@ function construireScene(){
     for(let f = 0; f < 8; f++) etiquette(String.fromCharCode(97 + f), 3.5 - f, 4.12);
     for(let r = 1; r <= 8; r++) etiquette(String(r), -4.12, r - 4.5);
   }catch(eEtiq){ window.__err3d = 'étiquettes — ' + (eEtiq && eEtiq.message ? eEtiq.message : eEtiq); }
-  const socle = new T.Mesh(boiteAdoucie(9.1, 0.4, 9.1, 0.03), MAT.socle);
-  socle.position.y = -0.27;
+  const socle = new T.Mesh(boiteAdoucie(8.9, 0.37, 8.9, 0.03), MAT.socle);
+  socle.position.y = -0.285;   // dessus du socle au contact exact du dessous du cadre
   socle.receiveShadow = true;
   socle.castShadow = true;
   scene.add(socle);
@@ -1530,7 +1531,7 @@ function construireScene(){
   // La table invisible : l'objet porte son ombre au sol — c'est elle qui donne le poids
   const tapis = new T.Mesh(new T.PlaneGeometry(50, 50), new T.ShadowMaterial({ opacity: 0.22 }));
   tapis.rotation.x = -Math.PI / 2;
-  tapis.position.y = -0.475;
+  tapis.position.y = -0.472;
   tapis.receiveShadow = true;
   scene.add(tapis);
 
