@@ -1500,12 +1500,12 @@ function construireScene(){
   function etiquette(txt, x, z){
     const cv = document.createElement('canvas'); cv.width = cv.height = 64;
     const cx = cv.getContext('2d');
-    cx.fillStyle = '#514E47';
-    cx.font = '600 34px "Avenir Next", Helvetica, Arial, sans-serif';
+    cx.fillStyle = '#3A3833';
+    cx.font = '700 40px "Avenir Next", Helvetica, Arial, sans-serif';
     cx.textAlign = 'center'; cx.textBaseline = 'middle';
     cx.fillText(txt, 32, 35);
     const m = new T.Mesh(
-      new T.PlaneGeometry(0.3, 0.3),
+      new T.PlaneGeometry(0.34, 0.34),
       new T.MeshBasicMaterial({ map: new T.CanvasTexture(cv), transparent: true })
     );
     m.rotation.x = -Math.PI / 2;
@@ -1607,7 +1607,7 @@ function construireScene(){
   ligneR('rgChaleur', 'Chaleur', 30);
   ligneR('rgExpo', 'Lumière', 44);
   ligneR('rgSol', 'Ombre sol', 50);
-  zone.appendChild(panneau);
+  zone.appendChild(nuancier);
   const majReglages = () => {
     const v = (id) => +nuancier.querySelector('#' + id).value;
     ['rgBasalte','rgChaleur','rgExpo','rgSol'].forEach(i => nuancier.querySelector('#' + i + 'v').textContent = v(i));
