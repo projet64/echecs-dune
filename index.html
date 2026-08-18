@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v27 · 18/08/2026 -->
+<!-- échecs dune · v28 · 18/08/2026 -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -492,11 +492,11 @@ const Voix = (() => {
     const fr = speechSynthesis.getVoices().filter(v => v.lang && v.lang.indexOf('fr') === 0);
     if(!fr.length) return;
     // Les voix "améliorées/premium" téléchargées dans iOS passent en tête
-    const qualite = v => (/premium|enhanced|am[ée]lior/i.test(v.name) ? 4 : 0)
+    const qualite = v => (/premium|enhanced|am[ée]lior|natural|neural/i.test(v.name) ? 4 : 0)
                        + (v.localService ? 1 : 0);
     const tri = fr.slice().sort((a, b) => qualite(b) - qualite(a));
-    vHartwig = tri.find(v => /thomas|nicolas|daniel|paul|j[ée]r[ée]my/i.test(v.name)) || tri[0];
-    vCoach   = tri.find(v => v !== vHartwig && /am[ée]lie|audrey|marie|aur[ée]lie|c[ée]line|flo/i.test(v.name))
+    vHartwig = tri.find(v => /thomas|nicolas|daniel|paul|j[ée]r[ée]my|henri|claude|r[ée]my/i.test(v.name)) || tri[0];
+    vCoach   = tri.find(v => v !== vHartwig && /am[ée]lie|audrey|marie|aur[ée]lie|c[ée]line|flo|denise|[ée]lo[iï]se|jacqueline|coralie|vivienne/i.test(v.name))
             || tri.find(v => v !== vHartwig) || tri[0];
   }
   if('speechSynthesis' in window){
