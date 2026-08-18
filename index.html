@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v24 · 18/08/2026 -->
+<!-- échecs dune · v25 · 18/08/2026 -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -1985,8 +1985,14 @@ function init(){
     $('voixHartwig').setAttribute('aria-pressed', Voix.etat.hartwig ? 'true' : 'false');
     $('voixCoach').setAttribute('aria-pressed', Voix.etat.coach ? 'true' : 'false');
   };
-  $('voixHartwig').onclick = () => { Voix.basculer('hartwig'); majVoixUI(); };
-  $('voixCoach').onclick   = () => { Voix.basculer('coach'); majVoixUI(); };
+  $('voixHartwig').onclick = () => {
+    const on = Voix.basculer('hartwig'); majVoixUI();
+    if(on) Voix.dire('hartwig', 'Me voici. Hartwig, prêt à jouer.');
+  };
+  $('voixCoach').onclick = () => {
+    const on = Voix.basculer('coach'); majVoixUI();
+    if(on) Voix.dire('coach', 'Le coach est là, à ton écoute.');
+  };
   majVoixUI();
   $('btnVue').onclick = () => basculerVue();
   if(localStorage.getItem('dune_vue') === '3d') basculerVue(true);
