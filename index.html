@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v23 · 17/08/2026 -->
+<!-- échecs dune · v24 · 18/08/2026 -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -499,6 +499,16 @@ const Voix = (() => {
     choisir();
     speechSynthesis.onvoiceschanged = choisir;
   }
+  // iOS n'autorise la parole qu'après un premier geste : on déverrouille au premier toucher
+  let deverrouillee = false;
+  document.addEventListener('pointerdown', () => {
+    if(deverrouillee || !('speechSynthesis' in window)) return;
+    deverrouillee = true;
+    const amorce = new SpeechSynthesisUtterance(' ');
+    amorce.volume = 0;
+    speechSynthesis.speak(amorce);
+  }, { capture: true });
+
   function dire(qui, texte){
     if(!('speechSynthesis' in window) || !etat[qui] || !texte) return;
     if(!vHartwig) choisir();
@@ -511,8 +521,8 @@ const Voix = (() => {
     // Deux timbres distincts, même si l'appareil n'a qu'une voix française
     if(qui === 'hartwig'){ u.pitch = 0.8; u.rate = 1.02; }
     else { u.pitch = 1.08; u.rate = 1.0; }
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
+    if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+    setTimeout(() => speechSynthesis.speak(u), 60);
   }
   function basculer(qui){
     etat[qui] = !etat[qui];
@@ -1586,7 +1596,7 @@ function construireScene(){
   zone.appendChild(renderer.domElement);
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.92;
+  renderer.toneMappingExposure = 0.92;   // lumière gravée (nuancier : 44)
 
   // Environnement d'atelier : dôme doux, baie lumineuse, sol sombre —
   // ce que les métaux et les satinés vont refléter. Sans lui, tout reste plastique.
@@ -1606,7 +1616,7 @@ function construireScene(){
 
   // Lumière d'atelier : douce, latérale, ombres tendres
   scene.add(new T.AmbientLight(0xFFFFFF, 0.13));
-  const soleil = new T.DirectionalLight(0xFFEFDC, 0.8);
+  const soleil = new T.DirectionalLight(0xFFF2E3, 0.8);   // chaleur gravée (nuancier : 30)
   soleil.position.set(-9, 9.2, -6);   // nord-ouest ~40° : l'ombre part vers la droite du plateau, déport réduit
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(2048, 2048);
@@ -1731,7 +1741,7 @@ function construireScene(){
   scene.add(socle);
 
   // La table invisible : l'objet porte son ombre au sol — c'est elle qui donne le poids
-  const tapis = new T.Mesh(new T.PlaneGeometry(50, 50), new T.ShadowMaterial({ opacity: 0.22 }));
+  const tapis = new T.Mesh(new T.PlaneGeometry(50, 50), new T.ShadowMaterial({ opacity: 0.225 }));   // ombre gravée (nuancier : 50)
   tapis.rotation.x = -Math.PI / 2;
   tapis.position.y = -0.472;
   tapis.receiveShadow = true;
@@ -1797,41 +1807,6 @@ function construireScene(){
     const nom = caseDepuisPos(pt.x, pt.z);
     if(nom) toucher3D(nom);
   }, { passive:true });
-
-  // ----- Nuancier provisoire : curseurs de réglage en direct (non bloquant) -----
-  try{
-  const nuancier = document.createElement('div');
-  nuancier.id = 'regl3d';
-  nuancier.style.cssText = 'position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(247,245,240,.95);border:1px solid #111;padding:10px 12px;font:11px "Avenir Next",Helvetica,sans-serif;color:#111;width:216px;';
-  nuancier.innerHTML = '<div style="font-weight:700;letter-spacing:1.5px;font-size:10px;margin-bottom:6px;">RÉGLAGES · provisoire</div>';
-  const ligneR = (id, nom, val) => {
-    const d = document.createElement('div');
-    d.style.cssText = 'display:flex;align-items:center;gap:6px;margin:5px 0;';
-    d.innerHTML = '<span style="width:62px;">' + nom + '</span>'
-      + '<input type="range" id="' + id + '" min="0" max="100" value="' + val + '" style="flex:1;">'
-      + '<b id="' + id + 'v" style="width:24px;text-align:right;">' + val + '</b>';
-    nuancier.appendChild(d);
-  };
-  ligneR('rgBasalte', 'Basalte', 55);
-  ligneR('rgChaleur', 'Chaleur', 30);
-  ligneR('rgExpo', 'Lumière', 44);
-  ligneR('rgSol', 'Ombre sol', 50);
-  zone.appendChild(nuancier);
-  const majReglages = () => {
-    const v = (id) => +nuancier.querySelector('#' + id).value;
-    ['rgBasalte','rgChaleur','rgExpo','rgSol'].forEach(i => nuancier.querySelector('#' + i + 'v').textContent = v(i));
-    const c1 = new T.Color(0x6A655C), c2 = new T.Color(0x26231F);
-    casesInfo.forEach(ci => {
-      if(!ci.sombre) return;
-      ci.mesh.material.color.copy(c1).lerp(c2, v('rgBasalte') / 100).offsetHSL(0, 0, ci.delta);
-    });
-    soleil.color.set(0xFFFFFF).lerp(new T.Color(0xFFD3A0), v('rgChaleur') / 100);
-    renderer.toneMappingExposure = 0.7 + (v('rgExpo') / 100) * 0.5;
-    tapis.material.opacity = (v('rgSol') / 100) * 0.45;
-  };
-  nuancier.addEventListener('input', majReglages);
-  majReglages();
-  }catch(eNuancier){ window.__err3d = 'nuancier — ' + (eNuancier && eNuancier.message ? eNuancier.message : eNuancier); }
 
   renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
