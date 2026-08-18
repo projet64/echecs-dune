@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v25 · 18/08/2026 -->
+<!-- échecs dune · v26 · 18/08/2026 -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -521,8 +521,26 @@ const Voix = (() => {
     // Deux timbres distincts, même si l'appareil n'a qu'une voix française
     if(qui === 'hartwig'){ u.pitch = 0.8; u.rate = 1.02; }
     else { u.pitch = 1.08; u.rate = 1.0; }
+    u.volume = 1;
     if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
-    setTimeout(() => speechSynthesis.speak(u), 60);
+    setTimeout(() => {
+      speechSynthesis.speak(u);
+      speechSynthesis.resume();   // iOS suspend parfois la synthèse : on la réveille
+      // Diagnostic : si rien ne démarre en 2 s, on le dit à l'écran
+      setTimeout(() => {
+        if(!speechSynthesis.speaking && !speechSynthesis.pending && !window.__voixSignalee){
+          window.__voixSignalee = true;
+          const c = document.getElementById('coach');
+          if(c) c.insertAdjacentHTML('afterbegin',
+            '<p class="chiffres">Note voix : la synthèse vocale n\'a pas démarré — restriction iOS probable en mode plein écran. Teste la même chose dans Safari et dis-le moi.</p>');
+        }
+      }, 2000);
+    }, 60);
+  }
+
+  // iOS endort la synthèse en arrière-plan : battement de réveil discret
+  if('speechSynthesis' in window){
+    setInterval(() => { try{ speechSynthesis.resume(); }catch(e){} }, 4000);
   }
   function basculer(qui){
     etat[qui] = !etat[qui];
