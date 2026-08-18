@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v22 · 17/08/2026 -->
+<!-- échecs dune · v23 · 17/08/2026 -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -397,6 +397,14 @@
       </div>
 
       <div class="bloc">
+        <div class="label">Voix</div>
+        <div class="niveaux" style="grid-template-columns:1fr 1fr;">
+          <button id="voixHartwig" aria-pressed="true">Hartwig</button>
+          <button id="voixCoach" aria-pressed="true">Le coach</button>
+        </div>
+      </div>
+
+      <div class="bloc">
         <div class="statut" id="statut">
           <strong>Préparation de la partie…</strong>
           <span class="trait">Tu joues les noirs · Hartwig les blancs</span>
@@ -405,6 +413,7 @@
 
       <div class="actions">
         <button class="act primaire" id="btnExplique" disabled>Explique-moi ce coup</button>
+        <button class="act" id="btnIndice">Un indice</button>
         <button class="act" id="btnReprendre" disabled>Reprendre mon coup</button>
         <button class="act" id="btnNouvelle">Nouvelle partie</button>
         <button class="act" id="btnDebrief" disabled>Débrief de la partie</button>
@@ -468,6 +477,51 @@ let moteurPense = false;
 let partieFinie = false;
 
 const $ = id => document.getElementById(id);
+
+/* ------------------------------------------------------------
+   -1. Les voix : Hartwig et le coach, débrayables séparément
+   ------------------------------------------------------------ */
+const Voix = (() => {
+  let vHartwig = null, vCoach = null;
+  const etat = {
+    hartwig: localStorage.getItem('dune_voix_hartwig') !== 'off',
+    coach: localStorage.getItem('dune_voix_coach') !== 'off'
+  };
+  function choisir(){
+    if(!('speechSynthesis' in window)) return;
+    const fr = speechSynthesis.getVoices().filter(v => v.lang && v.lang.indexOf('fr') === 0);
+    if(!fr.length) return;
+    vHartwig = fr.find(v => /thomas|nicolas|daniel|paul/i.test(v.name)) || fr[0];
+    vCoach   = fr.find(v => v !== vHartwig && /am[ée]lie|audrey|marie|aur[ée]lie|c[ée]line/i.test(v.name))
+            || fr.find(v => v !== vHartwig) || fr[0];
+  }
+  if('speechSynthesis' in window){
+    choisir();
+    speechSynthesis.onvoiceschanged = choisir;
+  }
+  function dire(qui, texte){
+    if(!('speechSynthesis' in window) || !etat[qui] || !texte) return;
+    if(!vHartwig) choisir();
+    const propre = String(texte).replace(/<[^>]+>/g, ' ').replace(/\u2192/g, ' vers ').replace(/\s+/g, ' ').trim();
+    if(!propre) return;
+    const u = new SpeechSynthesisUtterance(propre);
+    u.lang = 'fr-FR';
+    const v = (qui === 'hartwig') ? vHartwig : vCoach;
+    if(v) u.voice = v;
+    // Deux timbres distincts, même si l'appareil n'a qu'une voix française
+    if(qui === 'hartwig'){ u.pitch = 0.8; u.rate = 1.02; }
+    else { u.pitch = 1.08; u.rate = 1.0; }
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }
+  function basculer(qui){
+    etat[qui] = !etat[qui];
+    localStorage.setItem('dune_voix_' + qui, etat[qui] ? 'on' : 'off');
+    if(!etat[qui] && 'speechSynthesis' in window) speechSynthesis.cancel();
+    return etat[qui];
+  }
+  return { dire, basculer, etat };
+})();
 
 /* ------------------------------------------------------------
    0. Accueil : code d'accès + choix du profil
@@ -578,6 +632,33 @@ function choisirProfil(pr){
   profilActif = pr;
   localStorage.setItem('dune_profil', String(pr.id));
   $('btnQui').textContent = pr.nom;
+  // Reprise d'une partie interrompue (si elle appartient à ce profil)
+  try{
+    const memoP = localStorage.getItem('dune_encours');
+    if(memoP && game && game.history().length === 0 && !partieFinie){
+      const dp = JSON.parse(memoP);
+      if(dp && dp.pgn && (!dp.profil || dp.profil === pr.id)){
+        const t = new Chess();
+        if(t.load_pgn(dp.pgn) && !t.game_over()){
+          game = t;
+          const h = game.history({ verbose:true });
+          dernierCoup = h.length ? { from:h[h.length-1].from, to:h[h.length-1].to } : null;
+          if(typeof dp.niveau === 'number' && dp.niveau >= 0 && dp.niveau <= 3){
+            niveau = dp.niveau;
+            [...$('niveaux').children].forEach((x, i) => x.setAttribute('aria-pressed', i === niveau ? 'true' : 'false'));
+          }
+          dessiner(); majBoutons();
+          majStatut('<strong>Partie reprise où tu l\'avais laissée.</strong><span class="trait">'
+            + (game.turn() === 'b' ? 'À toi de jouer' : 'Je joue dès que je suis prêt') + '</span>');
+          if(game.turn() === 'w'){
+            const attend = setInterval(() => {
+              if(Moteur.estPret()){ clearInterval(attend); coupDuMoteur(); }
+            }, 400);
+          }
+        }
+      }
+    }
+  }catch(e){}
   // Niveau préféré du profil
   if(pr.niveau_prefere >= 0 && pr.niveau_prefere <= 3){
     niveau = pr.niveau_prefere;
@@ -703,8 +784,9 @@ function caseDe(col, rang){ return FICHIERS[col] + (8 - rang); }
 function dessiner(){
   const board = $('board');
   board.innerHTML = '';
-  const plateau = game.board();
-  const roiEnEchec = game.in_check() ? trouverRoi(game.turn()) : null;
+  const g = plateauActif();
+  const plateau = g.board();
+  const roiEnEchec = g.in_check() ? trouverRoiDe(g) : null;
 
   // Vue depuis les noirs : rangée 1 en haut, colonne h à gauche
   for(let vr = 0; vr < 8; vr++){
@@ -739,11 +821,13 @@ function dessiner(){
   if(mode3D && trois) synchro3D();
 }
 
-function trouverRoi(couleur){
-  const plateau = game.board();
+function trouverRoi(couleur){ return trouverRoiDe(game, couleur); }
+function trouverRoiDe(g, couleur){
+  const cible = couleur || g.turn();
+  const plateau = g.board();
   for(let r = 0; r < 8; r++) for(let c = 0; c < 8; c++){
     const p = plateau[r][c];
-    if(p && p.type === 'k' && p.color === couleur) return caseDe(c, r);
+    if(p && p.type === 'k' && p.color === cible) return caseDe(c, r);
   }
   return null;
 }
@@ -788,7 +872,7 @@ function caseSousPoint(x, y){
 }
 
 $('board').addEventListener('pointerdown', (e) => {
-  if(partieFinie || moteurPense || game.turn() !== 'b') return;
+  if(revue || partieFinie || moteurPense || game.turn() !== 'b') return;
   const sq = e.target.closest('.sq');
   if(!sq) return;
   const nom = sq.dataset.case;
@@ -967,6 +1051,7 @@ function appliquer(from, to, promotion){
   dernierCoup = { from, to };
   selection = null; coupsLegaux = [];
   dessiner();
+  sauvegarderEnCours();
   if(verifierFin()) return;
   majStatut('<strong>Je réfléchis…</strong><span class="trait">Hartwig · ' + NIVEAUX[niveau].nom + '</span>');
   setTimeout(coupDuMoteur, 120);
@@ -1005,6 +1090,8 @@ async function coupDuMoteur(){
   if(verifierFin()) return;
   majStatut('<strong>J\'ai joué : ' + annonceCoup(coup) + (game.in_check() ? ' — échec !' : '.') + '</strong>'
           + '<span class="trait">Hartwig · à toi de jouer</span>');
+  Voix.dire('hartwig', 'J\'ai joué : ' + annonceCoup(coup) + (game.in_check() ? '. Échec !' : '.'));
+  sauvegarderEnCours();
   majBoutons();
 }
 
@@ -1054,6 +1141,18 @@ function animerCoupDOM(from, to, dureeMs){
 }
 
 let resultatPartie = null;
+let revue = null;   // { coups:[san], chess, index, info } — relecture d'une partie enregistrée
+
+function plateauActif(){ return revue ? revue.chess : game; }
+
+function sauvegarderEnCours(){
+  try{
+    if(partieFinie || game.history().length === 0){ localStorage.removeItem('dune_encours'); return; }
+    localStorage.setItem('dune_encours', JSON.stringify({
+      pgn: game.pgn(), niveau, profil: profilActif ? profilActif.id : null
+    }));
+  }catch(e){}
+}
 
 function verifierFin(){
   if(!game.game_over()) return false;
@@ -1068,6 +1167,8 @@ function verifierFin(){
   else if(game.in_threefold_repetition()){ txt = '<strong>Nulle — triple répétition.</strong>'; resultatPartie = 'Nulle'; }
   else { txt = '<strong>Partie nulle.</strong>'; resultatPartie = 'Nulle'; }
   majStatut(txt + '<span class="trait">Partie terminée · débrief disponible</span>');
+  Voix.dire('hartwig', txt);
+  localStorage.removeItem('dune_encours');
   enregistrerPartie();
   majBoutons();
   return true;
@@ -1131,11 +1232,50 @@ async function faireDebrief(){
     const texte = (data.texte || '').trim();
     if(!texte) throw new Error('réponse vide');
     coach.innerHTML = texte.split(/\n+/).filter(Boolean).map(t => '<p>' + t + '</p>').join('');
+    Voix.dire('coach', texte);
   }catch(e){
     coach.innerHTML = '<p class="erreur">Débrief indisponible — ' + String(e.message || e).replace(/</g,'&lt;')
       + '</p><p class="chiffres">Si tu es sur GitHub Pages, passe sur l\'adresse Railway. Sinon, recopie-moi ce message.</p>';
   }
   b.textContent = 'Débrief de la partie';
+  majBoutons();
+}
+
+/* --- Un indice : le coach oriente sans donner le coup --- */
+async function demanderIndice(){
+  if(partieFinie || moteurPense || revue || game.turn() !== 'b') return;
+  const b = $('btnIndice');
+  b.disabled = true; b.textContent = 'Je regarde…';
+  const coach = $('coach');
+  coach.innerHTML = '<p class="vide">Je regarde la position…</p>';
+  try{
+    const r = await Moteur.chercher(game.fen(), { skill:20, movetime:700, depth:12 });
+    let meilleur = null;
+    if(r && r.best){
+      const t = new Chess(game.fen());
+      const m = t.move({ from:r.best.slice(0,2), to:r.best.slice(2,4), promotion:r.best.slice(4,5) || 'q' });
+      if(m) meilleur = m.san + ' — ' + NOMS_FR[m.piece] + ' de ' + m.from + ' vers ' + m.to + (m.captured ? ' (prise)' : '');
+    }
+    const contexte = [
+      'Coups joués (PGN) : ' + (game.pgn() || '(début de partie)'),
+      'FEN : ' + game.fen(),
+      meilleur ? ('Meilleur coup selon Stockfish, à ne JAMAIS révéler : ' + meilleur) : '',
+      game.in_check() ? 'Le joueur est en échec.' : ''
+    ].filter(Boolean).join('\n');
+    const rep = await fetch('/api/indice', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ contexte, profil: profilActif ? profilActif.id : null })
+    });
+    const data = await rep.json().catch(() => ({}));
+    if(!rep.ok) throw new Error(data.erreur || ('HTTP ' + rep.status));
+    const texte = (data.texte || '').trim();
+    if(!texte) throw new Error('réponse vide');
+    coach.innerHTML = texte.split(/\n+/).filter(Boolean).map(t => '<p>' + t + '</p>').join('');
+    Voix.dire('coach', texte);
+  }catch(e){
+    coach.innerHTML = '<p class="erreur">Indice indisponible — ' + String(e.message || e).replace(/</g,'&lt;') + '</p>';
+  }
+  b.textContent = 'Un indice';
   majBoutons();
 }
 
@@ -1159,9 +1299,10 @@ async function afficherParties(){
     const lignes = data.parties.map(p => {
       const d = new Date(p.date);
       const quand = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
-      return quand + ' — <b>' + p.resultat + '</b> · ' + p.niveau + ' · ' + p.nb_coups + ' coups';
+      return '<button class="act" style="width:100%;text-align:left;margin:3px 0;padding:9px 10px;font-size:11.5px;" onclick="ouvrirRevue(' + p.id + ')">'
+        + quand + ' — <b>' + p.resultat + '</b> · ' + p.niveau + ' · ' + p.nb_coups + ' coups</button>';
     });
-    coach.innerHTML = entete + '<p class="chiffres">' + lignes.join('<br>') + '</p>';
+    coach.innerHTML = entete + '<p class="vide" style="margin:4px 0 8px;">Touche une partie pour la revoir coup par coup.</p>' + lignes.join('');
   }catch(e){
     coach.innerHTML = '<p class="erreur">Historique indisponible — ' + String(e.message || e).replace(/</g,'&lt;')
       + '</p><p class="chiffres">Si tu es sur GitHub Pages, passe sur l\'adresse Railway. Sinon, recopie-moi ce message.</p>';
@@ -1268,6 +1409,7 @@ async function expliquer(){
     if(!texte) throw new Error('réponse vide');
     coach.innerHTML = (chiffres ? '<p class="chiffres">' + chiffres + '</p>' : '')
       + texte.split(/\n+/).filter(Boolean).map(p => '<p>' + p + '</p>').join('');
+    Voix.dire('coach', texte);
   }catch(e){
     coach.innerHTML = (chiffres ? '<p class="chiffres">' + chiffres + '</p>' : '')
       + '<p class="erreur">Le commentaire écrit fonctionne sur l\'adresse Railway de l\'appli (pas sur GitHub Pages). Les chiffres du moteur ci-dessus restent valables.</p>';
@@ -1277,6 +1419,60 @@ async function expliquer(){
   majBoutons();
 }
 
+/* --- Revue : revoir une partie enregistrée, coup par coup --- */
+async function ouvrirRevue(id){
+  try{
+    const rep = await fetch('/api/partie?id=' + id);
+    const data = await rep.json().catch(() => ({}));
+    if(!rep.ok || !data.pgn) throw new Error(data.erreur || 'partie introuvable');
+    const t = new Chess();
+    if(!t.load_pgn(data.pgn)) throw new Error('partie illisible');
+    revue = { coups: t.history(), chess: new Chess(), index: 0, info: data };
+    majRevue();
+  }catch(e){
+    $('coach').innerHTML = '<p class="erreur">Revue impossible — ' + String(e.message || e).replace(/</g,'&lt;') + '</p>';
+  }
+}
+
+function majRevue(){
+  if(!revue) return;
+  revue.chess = new Chess();
+  for(let i = 0; i < revue.index; i++) revue.chess.move(revue.coups[i]);
+  const h = revue.chess.history({ verbose:true });
+  dernierCoup = h.length ? { from:h[h.length-1].from, to:h[h.length-1].to } : null;
+  selection = null; coupsLegaux = [];
+  dessiner();
+  const d = new Date(revue.info.date);
+  const noDemiCoup = revue.index;
+  $('coach').innerHTML =
+    '<p><strong>Revue</strong> — ' + d.toLocaleDateString('fr-FR') + ' · ' + revue.info.resultat
+      + ' · demi-coup ' + noDemiCoup + '/' + revue.coups.length + '</p>'
+    + '<p class="chiffres">' + (noDemiCoup ? ('Dernier joué : ' + revue.coups[noDemiCoup-1]) : 'Position initiale') + '</p>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    + '<button class="act" onclick="pasRevue(-1)">\u25C0 Précédent</button>'
+    + '<button class="act" onclick="pasRevue(1)">Suivant \u25B6</button>'
+    + '<button class="act" onclick="fermerRevue()">Quitter la revue</button></div>';
+  majStatut('<strong>Revue de partie.</strong><span class="trait">Ta partie en cours est en pause</span>');
+  majBoutons();
+}
+
+function pasRevue(sens){
+  if(!revue) return;
+  revue.index = Math.max(0, Math.min(revue.coups.length, revue.index + sens));
+  majRevue();
+}
+
+function fermerRevue(){
+  revue = null;
+  const h = game.history({ verbose:true });
+  dernierCoup = h.length ? { from:h[h.length-1].from, to:h[h.length-1].to } : null;
+  selection = null; coupsLegaux = [];
+  dessiner();
+  majBoutons();
+  majStatut('<strong>Retour à ta partie.</strong><span class="trait">'
+    + (partieFinie ? 'Partie terminée' : (game.turn() === 'b' ? 'À toi de jouer' : 'Hartwig au trait')) + '</span>');
+}
+
 /* ------------------------------------------------------------
    7. Interface — statut, boutons, liste des coups
    ------------------------------------------------------------ */
@@ -1284,13 +1480,15 @@ function majStatut(html){ $('statut').innerHTML = html; }
 
 function majBoutons(){
   const hist = game.history();
-  $('btnExplique').disabled  = moteurPense || hist.length === 0;
-  $('btnReprendre').disabled = moteurPense || hist.length < 3 || partieFinie;
-  $('btnDebrief').disabled   = moteurPense || !partieFinie;
+  const bloque = moteurPense || !!revue;
+  $('btnExplique').disabled  = bloque || hist.length === 0;
+  $('btnReprendre').disabled = bloque || hist.length < 3 || partieFinie;
+  $('btnDebrief').disabled   = bloque || !partieFinie;
+  $('btnIndice').disabled    = bloque || partieFinie || game.turn() !== 'b';
 }
 
 function majCoups(){
-  const h = game.history();
+  const h = revue ? revue.coups.slice(0, revue.index) : game.history();
   if(!h.length){ $('coups').innerHTML = ''; return; }
   let out = [];
   for(let i = 0; i < h.length; i += 2){
@@ -1313,6 +1511,8 @@ $('niveaux').addEventListener('click', (e) => {
 
 $('btnNouvelle').onclick = () => {
   game = new Chess();
+  revue = null;
+  localStorage.removeItem('dune_encours');
   selection = null; coupsLegaux = []; dernierCoup = null; partieFinie = false; resultatPartie = null;
   $('coach').innerHTML = '<p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ».</p>';
   dessiner(); majBoutons();
@@ -1333,6 +1533,7 @@ $('btnReprendre').onclick = () => {
 $('btnExplique').onclick = expliquer;
 $('btnDebrief').onclick  = faireDebrief;
 $('btnParties').onclick  = afficherParties;
+$('btnIndice').onclick   = demanderIndice;
 
 /* ------------------------------------------------------------
    8. Vue 3D — les volumes Hartwig en perspective (three.js)
@@ -1583,7 +1784,7 @@ function construireScene(){
   // ---- Toucher : rayon depuis le doigt vers le plateau ----
   const ray = new T.Raycaster();
   renderer.domElement.addEventListener('pointerdown', (e) => {
-    if(partieFinie || moteurPense || game.turn() !== 'b') return;
+    if(revue || partieFinie || moteurPense || game.turn() !== 'b') return;
     const rect = renderer.domElement.getBoundingClientRect();
     const nd = new T.Vector2(
       ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -1657,7 +1858,8 @@ function synchro3D(){
   const T = trois.T;
 
   while(trois.groupePieces.children.length) trois.groupePieces.remove(trois.groupePieces.children[0]);
-  const plateau = game.board();
+  const gActif = plateauActif();
+  const plateau = gActif.board();
   for(let r = 0; r < 8; r++) for(let c = 0; c < 8; c++){
     const p = plateau[r][c];
     if(!p) continue;
@@ -1687,7 +1889,7 @@ function synchro3D(){
   }
   if(selection) plat(trois.geo.cadreSel, trois.MAT.jaune, selection);
   coupsLegaux.forEach(m => plat(m.captured ? trois.geo.anneau : trois.geo.point, trois.MAT.jaune, m.to));
-  const roi = game.in_check() ? trouverRoi(game.turn()) : null;
+  const roi = gActif.in_check() ? trouverRoiDe(gActif) : null;
   if(roi) plat(trois.geo.cadreSel, trois.MAT.rouge, roi);
 }
 
@@ -1804,6 +2006,13 @@ function init(){
   window.addEventListener('resize', () => { ajusterTaille(); if(mode3D && trois) tailler3D(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { ajusterTaille(); if(mode3D && trois) tailler3D(); }, 250));
   initAccueil();
+  const majVoixUI = () => {
+    $('voixHartwig').setAttribute('aria-pressed', Voix.etat.hartwig ? 'true' : 'false');
+    $('voixCoach').setAttribute('aria-pressed', Voix.etat.coach ? 'true' : 'false');
+  };
+  $('voixHartwig').onclick = () => { Voix.basculer('hartwig'); majVoixUI(); };
+  $('voixCoach').onclick   = () => { Voix.basculer('coach'); majVoixUI(); };
+  majVoixUI();
   $('btnVue').onclick = () => basculerVue();
   if(localStorage.getItem('dune_vue') === '3d') basculerVue(true);
   lancerMoteur();

@@ -8,6 +8,8 @@
    6. /api/partie   : enregistre une partie terminée (Postgres)
    7. /api/parties  : parties + stats du profil actif
    8. /api/debrief  : débrief rédigé de la partie complète
+   9. /api/indice   : une piste sans jamais donner le coup
+  10. /api/partie?id=N : relire une partie enregistrée
    La clé API, le code d'accès et la base restent côté serveur.
    ============================================================ */
 
@@ -76,6 +78,12 @@ const CONSIGNE_COUP =
   "Ne conseille jamais le coup à jouer ensuite ; si le coup était imprécis, dis-le et nomme l'idée que le moteur préférait, sans dérouler la suite. " +
   "3 courts paragraphes maximum, 160 mots maximum au total, pas de titres, pas de listes.\n\n" +
   "Données de la position :\n";
+
+const CONSIGNE_INDICE =
+  "Tu es coach d'échecs. Tu t'adresses au joueur en français, en le tutoyant ; son identité est précisée dans les données. " +
+  "On te fournit le meilleur coup selon Stockfish : il est STRICTEMENT INTERDIT de le nommer, de nommer la pièce à jouer ou une case précise. " +
+  "Donne UNE seule piste qui oriente le regard : une menace à voir, une pièce adverse mal défendue, une de ses pièces qui ne participe pas, une colonne ou une diagonale à exploiter — en termes généraux. " +
+  "2 phrases maximum, 45 mots maximum, pas de titres ni de listes.\n\nDonnées :\n";
 
 const CONSIGNE_DEBRIEF =
   "Tu es coach d'échecs. Tu t'adresses au joueur en français, en le tutoyant ; son identité et le ton à adopter sont précisés dans les données. " +
@@ -207,6 +215,35 @@ const server = http.createServer(async (req, res) => {
       const texte = await demanderClaude(CONSIGNE_COUP, note + contexte, 600);
       repondre(res, 200, { texte });
     }catch(e){ repondre(res, e.http || 400, { erreur: String(e.message || e) }); }
+    return;
+  }
+
+  /* --- Un indice, sans donner le coup --- */
+  if(req.method === 'POST' && req.url === '/api/indice'){
+    try{
+      const { contexte, profil } = await lireCorps(req);
+      if(typeof contexte !== 'string' || contexte.length < 10 || contexte.length > 8000) throw new Error('contexte invalide');
+      let note = '';
+      if(pool && profil){
+        const r = await pool.query('SELECT nom, note_coach FROM profils WHERE id = $1', [parseInt(profil,10) || 0]);
+        if(r.rows[0]) note = 'Ton interlocuteur : ' + r.rows[0].nom + '. ' + (r.rows[0].note_coach || '') + '\n';
+      }
+      const texte = await demanderClaude(CONSIGNE_INDICE, note + contexte, 250);
+      repondre(res, 200, { texte });
+    }catch(e){ repondre(res, e.http || 400, { erreur: String(e.message || e) }); }
+    return;
+  }
+
+  /* --- Relire une partie enregistrée --- */
+  if(req.method === 'GET' && req.url.indexOf('/api/partie?') === 0){
+    try{
+      if(!pool) throw new Error('Base de données non branchée.');
+      const m = req.url.match(/[?&]id=(\d+)/);
+      if(!m) throw new Error('identifiant manquant');
+      const r = await pool.query('SELECT id, date, niveau, resultat, nb_coups, pgn FROM parties WHERE id = $1', [parseInt(m[1],10)]);
+      if(!r.rows[0]) throw new Error('partie introuvable');
+      repondre(res, 200, r.rows[0]);
+    }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
     return;
   }
 
