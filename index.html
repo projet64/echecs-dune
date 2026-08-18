@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v28 · 18/08/2026 -->
+<!-- échecs dune · v29 · 18/08/2026 -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -402,6 +402,10 @@
           <button id="voixHartwig" aria-pressed="true">Hartwig</button>
           <button id="voixCoach" aria-pressed="true">Le coach</button>
         </div>
+        <div class="niveaux" style="grid-template-columns:1fr 1fr;margin-top:6px;">
+          <button id="chVoixHartwig" title="Essayer une autre voix">Changer sa voix</button>
+          <button id="chVoixCoach" title="Essayer une autre voix">Changer sa voix</button>
+        </div>
       </div>
 
       <div class="bloc">
@@ -495,9 +499,28 @@ const Voix = (() => {
     const qualite = v => (/premium|enhanced|am[ée]lior|natural|neural/i.test(v.name) ? 4 : 0)
                        + (v.localService ? 1 : 0);
     const tri = fr.slice().sort((a, b) => qualite(b) - qualite(a));
-    vHartwig = tri.find(v => /thomas|nicolas|daniel|paul|j[ée]r[ée]my|henri|claude|r[ée]my/i.test(v.name)) || tri[0];
-    vCoach   = tri.find(v => v !== vHartwig && /am[ée]lie|audrey|marie|aur[ée]lie|c[ée]line|flo|denise|[ée]lo[iï]se|jacqueline|coralie|vivienne/i.test(v.name))
+    // Un choix manuel mémorisé sur cet appareil prime sur le casting automatique
+    const memoH = localStorage.getItem('dune_voixnom_hartwig');
+    const memoC = localStorage.getItem('dune_voixnom_coach');
+    vHartwig = (memoH && fr.find(v => v.name === memoH))
+            || tri.find(v => /thomas|nicolas|daniel|paul|j[ée]r[ée]my|henri|claude|r[ée]my/i.test(v.name)) || tri[0];
+    vCoach   = (memoC && fr.find(v => v.name === memoC))
+            || tri.find(v => v !== vHartwig && /am[ée]lie|audrey|marie|aur[ée]lie|c[ée]line|flo|denise|[ée]lo[iï]se|jacqueline|coralie|vivienne/i.test(v.name))
             || tri.find(v => v !== vHartwig) || tri[0];
+  }
+
+  // Faire défiler les voix françaises disponibles pour un locuteur, et mémoriser le choix
+  function suivante(qui){
+    if(!('speechSynthesis' in window)) return null;
+    const fr = speechSynthesis.getVoices().filter(v => v.lang && v.lang.indexOf('fr') === 0);
+    if(!fr.length) return null;
+    const courante = (qui === 'hartwig') ? vHartwig : vCoach;
+    let i = courante ? fr.findIndex(v => v.name === courante.name) : -1;
+    i = (i + 1) % fr.length;
+    const nv = fr[i];
+    if(qui === 'hartwig') vHartwig = nv; else vCoach = nv;
+    localStorage.setItem('dune_voixnom_' + qui, nv.name);
+    return nv;
   }
   if('speechSynthesis' in window){
     choisir();
@@ -552,7 +575,7 @@ const Voix = (() => {
     if(!etat[qui] && 'speechSynthesis' in window) speechSynthesis.cancel();
     return etat[qui];
   }
-  return { dire, basculer, etat };
+  return { dire, basculer, suivante, etat };
 })();
 
 /* ------------------------------------------------------------
@@ -2014,6 +2037,17 @@ function init(){
   $('voixCoach').onclick = () => {
     const on = Voix.basculer('coach'); majVoixUI();
     if(on) Voix.dire('coach', 'Le coach est là, à ton écoute.');
+  };
+  const nomCourt = (v) => v.name.replace(/\(.*?\)/g, '').replace(/(fran[çc]ais|french|france|voice|voix)/gi, '').trim() || 'nouvelle voix';
+  $('chVoixHartwig').onclick = () => {
+    if(!Voix.etat.hartwig){ Voix.basculer('hartwig'); majVoixUI(); }
+    const v = Voix.suivante('hartwig');
+    if(v) Voix.dire('hartwig', 'Me voici. Je suis ' + nomCourt(v) + ', la nouvelle voix de Hartwig.');
+  };
+  $('chVoixCoach').onclick = () => {
+    if(!Voix.etat.coach){ Voix.basculer('coach'); majVoixUI(); }
+    const v = Voix.suivante('coach');
+    if(v) Voix.dire('coach', 'Ici ' + nomCourt(v) + ', la nouvelle voix du coach.');
   };
   majVoixUI();
   $('btnVue').onclick = () => basculerVue();
