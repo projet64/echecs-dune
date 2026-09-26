@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v29 · 18/08/2026 -->
+<!-- échecs dune · v30 · 26/09/2026 — choix blancs/noirs, ambiance Terre du Gard, pièces classiques, gestes 3D -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -13,20 +13,28 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <style>
   :root{
-    --noir:#111111;
+    /* Ambiance « Terre du Gard » : fond noir, cadre alu, damier terre cuite */
+    --fond:#0E0D0C;
+    --surface:#181614;
+    --surface-2:#221F1C;
+    --ligne:#36312C;
+    --texte:#EFE8DC;
+    --texte-2:#A99E90;
     --jaune:#E9CA55;
-    --creme:#F7F5F0;
-    --case-claire:#F2EFE7;
-    --case-foncee:#5E5E58;
-    --gris:#6E6A63;
-    --filet:#D8D3C7;
+    --encre:#141312;
+    --rouge:#D2604F;
+    --case-claire:#EEECE7;
+    --case-foncee:#8F5B45;
     --sq: 64px;
+    --cad: calc(var(--sq) * .42);
+    color-scheme: dark;
   }
+  body.nuance-cendre{ --case-claire:#ECECEA; --case-foncee:#7E5E52; }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;margin:0;}
   body{
-    background:var(--creme);
-    color:var(--noir);
+    background:var(--fond);
+    color:var(--texte);
     font-family:"Avenir Next","Helvetica Neue",Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
     overflow:hidden;
@@ -45,42 +53,47 @@
     display:flex;align-items:center;justify-content:space-between;
     gap:12px;
     padding:10px 16px;
-    border-bottom:1px solid var(--filet);
+    border-bottom:1px solid var(--ligne);
   }
   .marque{display:flex;align-items:baseline;gap:10px;min-width:0;}
   .marque .pastille{width:12px;height:12px;background:var(--jaune);flex:0 0 auto;align-self:center;}
   .marque .nom{font-size:17px;font-weight:700;letter-spacing:.5px;}
-  .marque .sous{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gris);white-space:nowrap;}
-  .etat-moteur{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gris);white-space:nowrap;}
-  .led{width:8px;height:8px;border-radius:50%;background:var(--filet);}
+  .marque .sous{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--texte-2);white-space:nowrap;}
+  .etat-moteur{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--texte-2);white-space:nowrap;}
+  .led{width:8px;height:8px;border-radius:50%;background:var(--ligne);}
   .led.charge{background:var(--jaune);animation:pulse 1.1s infinite;}
-  .led.ok{background:#2e7d32;}
-  .led.ko{background:#b03a2e;}
+  .led.ok{background:#5FA863;}
+  .led.ko{background:var(--rouge);}
   @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
 
   /* ---------- corps ---------- */
   main{flex:1 1 auto;display:flex;min-height:0;}
   @media (max-aspect-ratio: 1/1){ main{flex-direction:column;} }
 
-  .zone-plateau{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0;min-width:0;}
+  .zone-plateau{
+    flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0;min-width:0;
+    background:radial-gradient(ellipse 70% 75% at 50% 48%, #2A2724 0%, #151412 55%, #0B0A09 100%);
+  }
+  /* Cadre alu brossé : les coordonnées sont gravées dedans */
   .plateau-wrap{
     position:relative;
-    padding:13px;
-    border-radius:3px;
+    padding:var(--cad);
+    border-radius:4px;
     background:
       repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 1px, rgba(17,17,17,.045) 2px 3px),
       linear-gradient(165deg,#EDECE8 0%, #C3C2BE 30%, #F2F1ED 47%, #AEADA9 68%, #DCDBD7 100%);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.85),
       inset 0 -1px 2px rgba(17,17,17,.30),
-      0 20px 42px rgba(17,17,17,.30);
+      0 0 0 1px rgba(0,0,0,.6),
+      0 24px 60px rgba(0,0,0,.65);
   }
   /* chant du socle : épaisseur visible sous le cadre */
   .plateau-wrap::after{
     content:"";position:absolute;left:2px;right:2px;bottom:-10px;height:11px;
     background:linear-gradient(180deg,#9B9A96 0%, #6F6E6A 85%, #5C5B58 100%);
     border-radius:0 0 5px 5px;
-    box-shadow:0 8px 18px rgba(17,17,17,.38);
+    box-shadow:0 8px 18px rgba(0,0,0,.5);
     z-index:-1;
   }
 
@@ -89,7 +102,7 @@
     grid-template-columns:repeat(8,var(--sq));
     grid-template-rows:repeat(8,var(--sq));
     border:1px solid #4E4B45;
-    box-shadow:inset 0 0 14px rgba(17,17,17,.14), 0 2px 6px rgba(17,17,17,.22);
+    box-shadow:inset 0 0 14px rgba(17,17,17,.14), 0 2px 6px rgba(17,17,17,.3);
     background:var(--case-claire);
   }
   .sq{
@@ -135,20 +148,25 @@
   }
   .cible{
     position:absolute;width:26%;height:26%;border-radius:50%;
-    background:var(--jaune);opacity:.85;pointer-events:none;
-    box-shadow:0 0 0 1px rgba(17,17,17,.35);
+    background:var(--jaune);opacity:.9;pointer-events:none;
+    box-shadow:0 0 0 1px rgba(17,17,17,.45);
   }
   .cible.prise{
     width:86%;height:86%;background:transparent;border-radius:50%;
-    box-shadow:inset 0 0 0 4px var(--jaune);opacity:.9;
+    box-shadow:inset 0 0 0 4px var(--jaune);opacity:.95;
   }
   .piece{
     width:82%;height:82%;
     pointer-events:none;
     filter:drop-shadow(0 2px 2px rgba(17,17,17,.30));
   }
+  /* Jeu Hartwig (Bauhaus) */
   .piece.b{color:#FFFFFF;--tr:#141414;--sw:4;}
   .piece.n{color:#161616;--tr:rgba(255,255,255,.92);--sw:2.4;}
+  /* Jeu classique dune */
+  .piece.classique{width:88%;height:88%;}
+  .piece.classique.b{color:#FBF6EA;--tr:#2B2118;--sw:3;}
+  .piece.classique.n{color:#2B2118;--tr:#F3E4C4;--sw:2.2;}
   .fantome{
     position:fixed;z-index:60;pointer-events:none;
     display:flex;align-items:center;justify-content:center;
@@ -160,91 +178,127 @@
     display:flex;align-items:center;justify-content:center;
   }
 
-  .coords{position:absolute;color:#5D5C58;font-size:9px;letter-spacing:1px;text-shadow:0 1px 0 rgba(255,255,255,.4);}
-  .coords.fichiers{left:13px;right:13px;bottom:1px;display:grid;grid-template-columns:repeat(8,var(--sq));text-align:center;}
-  .coords.rangs{top:13px;bottom:13px;left:3px;display:grid;grid-template-rows:repeat(8,var(--sq));align-items:center;text-align:left;}
+  /* Coordonnées gravées dans le cadre alu */
+  .coords{
+    position:absolute;display:grid;align-items:center;justify-items:center;
+    color:#2E2C29;font-weight:700;font-size:max(10px, calc(var(--sq) * .24));
+    text-shadow:0 1px 0 rgba(255,255,255,.55);pointer-events:none;
+  }
+  .coords.fichiers{left:var(--cad);right:var(--cad);bottom:0;height:var(--cad);grid-template-columns:repeat(8,var(--sq));}
+  .coords.rangs{top:var(--cad);bottom:var(--cad);left:0;width:var(--cad);grid-template-rows:repeat(8,var(--sq));}
 
   /* ---------- panneau ---------- */
   .panneau{
     flex:0 0 340px;
-    border-left:1px solid var(--filet);
-    display:flex;flex-direction:column;min-height:0;background:#FFFDF9;
+    border-left:1px solid var(--ligne);
+    display:flex;flex-direction:column;min-height:0;background:var(--surface);
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
   }
   @media (max-aspect-ratio: 1/1){
-    .panneau{flex:0 0 auto;border-left:none;border-top:1px solid var(--filet);max-height:44%;}
+    .panneau{flex:0 0 auto;border-left:none;border-top:1px solid var(--ligne);max-height:44%;}
   }
 
   .bandeau{
-    background:var(--noir);color:#fff;
+    background:#000;color:var(--texte);
     padding:9px 14px;display:flex;align-items:center;gap:9px;
     font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+    border-bottom:1px solid var(--ligne);
   }
   .bandeau i{width:9px;height:9px;background:var(--jaune);display:block;flex:0 0 auto;}
 
-  .bloc{padding:14px;border-bottom:1px solid var(--filet);}
-  .label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--gris);margin-bottom:8px;}
+  .bloc{padding:14px;border-bottom:1px solid var(--ligne);}
+  .label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--texte-2);margin-bottom:8px;}
 
   .niveaux{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
   .niveaux button{
     font:inherit;font-size:11px;font-weight:600;
-    padding:9px 4px;border:1px solid var(--filet);background:#fff;color:var(--noir);
-    cursor:pointer;
+    padding:9px 4px;border:1px solid var(--ligne);background:var(--surface-2);color:var(--texte);
+    cursor:pointer;border-radius:6px;
   }
-  .niveaux button[aria-pressed="true"]{background:var(--jaune);border-color:var(--noir);}
+  .niveaux button[aria-pressed="true"]{background:var(--jaune);border-color:var(--jaune);color:var(--encre);}
 
   .statut{font-size:13px;line-height:1.45;}
   .statut strong{font-weight:700;}
-  .statut .trait{color:var(--gris);font-size:11px;letter-spacing:1px;text-transform:uppercase;display:block;margin-top:3px;}
+  .statut .trait{color:var(--texte-2);font-size:11px;letter-spacing:1px;text-transform:uppercase;display:block;margin-top:3px;}
 
-  .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;border-bottom:1px solid var(--filet);}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;border-bottom:1px solid var(--ligne);}
   button.act{
-    font:inherit;font-size:12px;font-weight:600;padding:11px 8px;
-    border:1px solid var(--noir);background:#fff;color:var(--noir);cursor:pointer;
+    font:inherit;font-size:12px;font-weight:600;padding:11px 8px;border-radius:8px;
+    border:1px solid var(--texte-2);background:transparent;color:var(--texte);cursor:pointer;
   }
-  button.act.primaire{background:var(--noir);color:#fff;grid-column:1 / -1;}
-  button.act.primaire:disabled{background:#DDD9D0;color:#8b877f;border-color:#DDD9D0;}
+  button.act.primaire{background:var(--jaune);border-color:var(--jaune);color:var(--encre);grid-column:1 / -1;}
+  button.act.primaire:disabled{background:var(--surface-2);color:var(--texte-2);border-color:var(--ligne);opacity:1;}
   button.act:disabled{opacity:.4;cursor:default;}
 
-  .coach{flex:1 1 auto;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch;}
+  .coach{flex:1 0 auto;min-height:120px;padding:14px;}
   .coach p{margin:0 0 10px;font-size:13.5px;line-height:1.55;}
-  .coach .vide{color:var(--gris);font-size:12.5px;line-height:1.5;}
+  .coach .vide{color:var(--texte-2);font-size:12.5px;line-height:1.5;}
   .coach .chiffres{
-    font-size:11px;color:var(--gris);letter-spacing:.3px;
+    font-size:11px;color:var(--texte-2);letter-spacing:.3px;
     border-left:2px solid var(--jaune);padding-left:9px;margin:0 0 12px;line-height:1.5;
   }
-  .coach .erreur{border-left:2px solid #b03a2e;padding-left:9px;font-size:12.5px;line-height:1.5;color:#8a2f26;}
-  .coach .regle{border-left:2px solid var(--jaune);padding-left:9px;font-size:12.5px;line-height:1.55;color:#1a1a1a;}
+  .coach .erreur{border-left:2px solid var(--rouge);padding-left:9px;font-size:12.5px;line-height:1.5;color:#E8A396;}
+  .coach .regle{border-left:2px solid var(--jaune);padding-left:9px;font-size:12.5px;line-height:1.55;color:var(--texte);}
 
-  .coups{padding:10px 14px 14px;font-size:11.5px;color:var(--gris);line-height:1.7;word-spacing:2px;}
-  .coups b{color:var(--noir);font-weight:600;}
+  .coups{padding:10px 14px 14px;font-size:11.5px;color:var(--texte-2);line-height:1.7;word-spacing:2px;}
+  .coups b{color:var(--texte);font-weight:600;}
 
   footer{
     flex:0 0 auto;border-top:2px solid var(--jaune);
     padding:7px 16px;display:flex;justify-content:space-between;align-items:center;
-    font-size:9px;color:var(--gris);letter-spacing:.4px;
+    font-size:9px;color:var(--texte-2);letter-spacing:.4px;
   }
-  footer .maj{font-size:10px;font-weight:700;color:var(--noir);letter-spacing:0;}
+  footer .maj{font-size:10px;font-weight:700;color:var(--texte);letter-spacing:0;}
 
-  /* ---------- promotion ---------- */
+  /* ---------- fenêtres : promotion, choix de couleur ---------- */
   .voile{
-    position:fixed;inset:0;z-index:80;background:rgba(17,17,17,.55);
-    display:none;align-items:center;justify-content:center;
+    position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.65);
+    display:none;align-items:center;justify-content:center;padding:16px;
   }
   .voile.on{display:flex;}
-  .promo{background:var(--creme);border:1px solid var(--noir);padding:18px 20px;max-width:320px;}
+  .promo{background:var(--surface);border:1px solid var(--ligne);border-radius:14px;padding:18px 20px;max-width:320px;color:var(--texte);}
   .promo h3{margin:0 0 4px;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;}
-  .promo p{margin:0 0 14px;font-size:12px;color:var(--gris);}
+  .promo p{margin:0 0 14px;font-size:12px;color:var(--texte-2);}
   .promo .choix{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
   .promo .choix button{
-    padding:8px 0;background:#fff;display:flex;align-items:center;justify-content:center;
-    border:1px solid var(--filet);cursor:pointer;
+    padding:8px 0;background:var(--case-claire);display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--ligne);border-radius:8px;cursor:pointer;
   }
   .promo .choix .piece{width:40px;height:40px;}
-  .promo .choix button:hover{border-color:var(--noir);background:var(--jaune);}
+  .promo .choix button:hover{border-color:var(--jaune);background:var(--jaune);}
+
+  .choix-couleur{background:var(--surface);border:1px solid var(--ligne);border-radius:18px;padding:22px 22px 18px;width:min(560px,100%);color:var(--texte);}
+  .choix-couleur h3{margin:0 0 4px;font-size:22px;font-weight:700;}
+  .choix-couleur p{margin:0 0 18px;font-size:14px;color:var(--texte-2);}
+  .choix-couleur .options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .choix-couleur .options button{
+    font:inherit;color:var(--texte);cursor:pointer;
+    min-height:150px;padding:14px 8px;border-radius:14px;
+    border:2px solid var(--ligne);background:var(--surface-2);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  }
+  .choix-couleur .options button:hover,.choix-couleur .options button:focus-visible{border-color:var(--jaune);outline:none;}
+  .choix-couleur .pion{width:64px;height:64px;border-radius:12px;background:var(--case-claire);display:flex;align-items:center;justify-content:center;}
+  .choix-couleur .pion.fonce{background:var(--case-foncee);}
+  .choix-couleur .pion.mix{background:linear-gradient(135deg,var(--case-claire) 50%,var(--case-foncee) 50%);}
+  .choix-couleur .pion .piece{width:52px;height:52px;}
+  .choix-couleur .t{font-size:17px;font-weight:700;}
+  .choix-couleur .d{font-size:12.5px;color:var(--texte-2);}
+  @media (max-width:520px){ .choix-couleur .options{grid-template-columns:1fr;} .choix-couleur .options button{min-height:auto;flex-direction:row;justify-content:flex-start;padding:10px 14px;} }
+
+  /* ---------- réglages du plateau ---------- */
+  .reglages-grille{display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center;}
+  .reglages-grille .rl{font-size:11px;color:var(--texte-2);}
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .seg button{
+    font:inherit;font-size:11px;font-weight:600;padding:9px 4px;border-radius:6px;
+    border:1px solid var(--ligne);background:var(--surface-2);color:var(--texte);cursor:pointer;
+  }
+  .seg button[aria-pressed="true"]{background:var(--jaune);border-color:var(--jaune);color:var(--encre);}
 
   /* ---------- écran d'accueil / profils ---------- */
   .accueil{
-    position:fixed;inset:0;z-index:90;background:var(--creme);
+    position:fixed;inset:0;z-index:90;background:var(--fond);color:var(--texte);
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:24px;
   }
@@ -252,46 +306,48 @@
   .accueil .marque-a{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
   .accueil .marque-a .past{width:16px;height:16px;background:var(--jaune);}
   .accueil .marque-a .nom{font-size:30px;font-weight:700;letter-spacing:.5px;}
-  .accueil .sous-a{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--gris);margin-bottom:34px;}
-  .accueil .invite{font-size:13px;color:var(--gris);margin-bottom:14px;}
+  .accueil .sous-a{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--texte-2);margin-bottom:34px;}
+  .accueil .invite{font-size:14px;color:var(--texte-2);margin-bottom:14px;}
   .code-bloc{display:flex;gap:8px;margin-bottom:10px;}
   .code-bloc input{
-    font:inherit;font-size:16px;letter-spacing:2px;padding:12px 14px;width:200px;
-    border:1px solid var(--noir);background:#fff;color:var(--noir);text-align:center;
+    font:inherit;font-size:16px;letter-spacing:2px;padding:12px 14px;width:200px;border-radius:8px;
+    border:1px solid var(--texte-2);background:var(--surface-2);color:var(--texte);text-align:center;
   }
   .code-bloc button{
-    font:inherit;font-size:14px;font-weight:600;padding:12px 20px;
-    border:1px solid var(--noir);background:var(--noir);color:#fff;cursor:pointer;
+    font:inherit;font-size:14px;font-weight:700;padding:12px 20px;border-radius:8px;
+    border:1px solid var(--jaune);background:var(--jaune);color:var(--encre);cursor:pointer;
   }
   .code-bloc button.voir{
-    background:#fff;color:var(--noir);border:1px solid var(--filet);
+    background:transparent;color:var(--texte);border:1px solid var(--ligne);
     font-weight:400;font-size:12px;letter-spacing:1px;text-transform:uppercase;padding:12px 12px;
   }
-  .accueil .err{color:#b03a2e;font-size:12px;min-height:18px;margin-bottom:6px;}
+  .accueil .err{color:#E8A396;font-size:12px;min-height:18px;margin-bottom:6px;}
   .profils-grille{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:640px;}
   .carte-profil{
-    font:inherit;cursor:pointer;
-    width:150px;padding:20px 12px 16px;
-    background:#fff;border:1px solid var(--noir);
+    font:inherit;cursor:pointer;color:var(--texte);
+    width:150px;padding:20px 12px 16px;border-radius:14px;
+    background:var(--surface);border:1px solid var(--ligne);
     display:flex;flex-direction:column;align-items:center;gap:10px;
   }
+  .carte-profil:hover,.carte-profil:focus-visible{border-color:var(--jaune);outline:none;}
   .carte-profil .rond{
     width:52px;height:52px;border-radius:50%;
-    background:var(--noir);color:var(--jaune);
+    background:var(--jaune);color:var(--encre);
     display:flex;align-items:center;justify-content:center;
     font-size:22px;font-weight:700;
   }
-  .carte-profil .pnom{font-size:14px;font-weight:600;text-align:center;word-break:break-word;}
-  .carte-profil.ajout{border-style:dashed;border-color:var(--gris);color:var(--gris);}
-  .carte-profil.ajout .rond{background:transparent;border:1.5px dashed var(--gris);color:var(--gris);font-size:28px;font-weight:400;}
+  .carte-profil .pnom{font-size:15px;font-weight:600;text-align:center;word-break:break-word;}
+  .carte-profil.ajout{border-style:dashed;color:var(--texte-2);}
+  .carte-profil.ajout .rond{background:transparent;border:1.5px dashed var(--texte-2);color:var(--texte-2);font-size:28px;font-weight:400;}
   .nouveau-bloc{display:none;flex-direction:column;align-items:center;gap:10px;margin-top:16px;}
   .nouveau-bloc.on{display:flex;}
-  .accueil .note-pied{position:absolute;bottom:16px;font-size:9px;color:var(--gris);letter-spacing:.4px;}
+  .accueil .note-pied{position:absolute;bottom:16px;font-size:9px;color:var(--texte-2);letter-spacing:.4px;}
   .qui{
-    font:inherit;background:none;border:none;cursor:pointer;
-    font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gris);
-    padding:4px 8px;border:1px solid var(--filet);
+    font:inherit;background:none;cursor:pointer;color:var(--texte);border-radius:6px;
+    font-size:11px;letter-spacing:1px;text-transform:uppercase;
+    padding:5px 9px;border:1px solid var(--ligne);
   }
+  .qui[hidden]{display:none;}
 
   @media (prefers-reduced-motion: reduce){ *{animation:none !important;transition:none !important;} }
 </style>
@@ -328,6 +384,13 @@
   <circle cx="50" cy="63" r="13.5" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)"/>
   <rect x="31" y="78" width="38" height="9" fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round"/>
 </symbol>
+<!-- Jeu classique dune : silhouettes traditionnelles redessinées (un seul tracé par pièce) -->
+<symbol id="c_k" viewBox="0 0 100 100"><path fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round" d="M47 3 H53 V8 H58 V14 H53 V19 H47 V14 H42 V8 H47 Z M37 21 Q50 15 63 21 L61 40 H39 Z M35 40 H65 Q68 40 68 43 Q68 46 65 46 H35 Q32 46 32 43 Q32 40 35 40 Z M42 46 Q41 64 30 78 H70 Q59 64 58 46 Z M26 78 H74 Q78 78 78 82 V87 Q78 90 75 90 H25 Q22 90 22 87 V82 Q22 78 26 78 Z"/></symbol>
+<symbol id="c_q" viewBox="0 0 100 100"><path fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round" d="M27.5 15 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z M38 9.5 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z M55 9.5 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z M65.5 15 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z M31 19 L38.5 33 L41.5 13 L50 30 L58.5 13 L61.5 33 L69 19 L64 40 H36 Z M35 40 H65 Q68 40 68 43 Q68 46 65 46 H35 Q32 46 32 43 Q32 40 35 40 Z M42 46 Q41 64 30 78 H70 Q59 64 58 46 Z M26 78 H74 Q78 78 78 82 V87 Q78 90 75 90 H25 Q22 90 22 87 V82 Q22 78 26 78 Z"/></symbol>
+<symbol id="c_r" viewBox="0 0 100 100"><path fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round" d="M30 14 H38.5 V21 H45.5 V14 H54.5 V21 H61.5 V14 H70 V33 Q70 36 67 36 H33 Q30 36 30 33 Z M32 36 H68 V42 H32 Z M35 42 H65 L62 78 H38 Z M26 78 H74 Q78 78 78 82 V87 Q78 90 75 90 H25 Q22 90 22 87 V82 Q22 78 26 78 Z"/></symbol>
+<symbol id="c_b" viewBox="0 0 100 100"><path fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round" d="M45.5 10 a4.5 4.5 0 1 0 9 0 a4.5 4.5 0 1 0 -9 0 Z M50 15 Q65 27 63 39 Q61 46 50 46 Q39 46 37 39 Q35 27 50 15 Z M54.5 22 L58 25 L50.5 34 L47 31 Z M37 46 H63 Q66 46 66 49 Q66 52 63 52 H37 Q34 52 34 49 Q34 46 37 46 Z M42.5 52 Q42 66 32 78 H68 Q58 66 57.5 52 Z M26 78 H74 Q78 78 78 82 V87 Q78 90 75 90 H25 Q22 90 22 87 V82 Q22 78 26 78 Z"/></symbol>
+<symbol id="c_n" viewBox="0 0 100 100"><path fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round" d="M34 78 L38 60 Q31 57 26 55 Q20 52 21 45 Q22 39 28 35 L42 24 L41 11 Q48 12 53 17 Q66 21 71 35 Q75 50 71 64 L69 78 Z M40.4 31 a2.6 2.6 0 1 0 5.2 0 a2.6 2.6 0 1 0 -5.2 0 Z M26 78 H74 Q78 78 78 82 V87 Q78 90 75 90 H25 Q22 90 22 87 V82 Q22 78 26 78 Z"/></symbol>
+<symbol id="c_p" viewBox="0 0 100 100"><path fill="currentColor" stroke="var(--tr)" stroke-width="var(--sw)" stroke-linejoin="round" d="M39 27 a11 11 0 1 0 22 0 a11 11 0 1 0 -22 0 Z M38 40 H62 Q65 40 65 43 Q65 46 62 46 H38 Q35 46 35 43 Q35 40 38 40 Z M42.5 46 Q43 64 32 78 H68 Q57 64 57.5 46 Z M26 78 H74 Q78 78 78 82 V87 Q78 90 75 90 H25 Q22 90 22 87 V82 Q22 78 26 78 Z"/></symbol>
 </defs>
 </svg>
 <div class="accueil" id="accueil">
@@ -368,6 +431,7 @@
       <span class="sous">échecs · v0</span>
     </div>
     <div style="display:flex;align-items:center;gap:14px;">
+      <button class="qui" id="btnRecentrer" title="Remettre la vue 3D par défaut" hidden>Recentrer</button>
       <button class="qui" id="btnVue" title="Basculer la vue">3D</button>
       <button class="qui" id="btnQui" title="Changer de joueur">Joueur</button>
       <div class="etat-moteur"><span class="led charge" id="led"></span><span id="etatMoteur">Chargement de Hartwig</span></div>
@@ -409,9 +473,25 @@
       </div>
 
       <div class="bloc">
+        <div class="label">Plateau</div>
+        <div class="reglages-grille">
+          <span class="rl">Pièces</span>
+          <div class="seg" id="segPieces">
+            <button type="button" data-v="hartwig" aria-pressed="true">Hartwig</button>
+            <button type="button" data-v="classique" aria-pressed="false">Classiques</button>
+          </div>
+          <span class="rl">Cases</span>
+          <div class="seg" id="segNuance">
+            <button type="button" data-v="cuite" aria-pressed="true">Terre cuite</button>
+            <button type="button" data-v="cendre" aria-pressed="false">Terre cendrée</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloc">
         <div class="statut" id="statut">
           <strong>Préparation de la partie…</strong>
-          <span class="trait">Tu joues les noirs · Hartwig les blancs</span>
+          <span class="trait">Choisis ta couleur pour commencer</span>
         </div>
       </div>
 
@@ -435,7 +515,7 @@
 
   <footer>
     <span>SARL dune architecture + design · Nîmes</span>
-    <span class="maj">MAJ 18/08/2026</span>
+    <span class="maj">MAJ 26/09/2026</span>
   </footer>
 </div>
 
@@ -444,6 +524,19 @@
     <h3>Promotion</h3>
     <p>Ton pion atteint la dernière rangée. Choisis la pièce.</p>
     <div class="choix" id="choixPromo"></div>
+  </div>
+</div>
+
+<div class="voile" id="voileCouleur" role="dialog" aria-modal="true" aria-labelledby="titreCouleur">
+  <div class="choix-couleur">
+    <h3 id="titreCouleur">Tu prends quelles pièces ?</h3>
+    <p id="sousCouleur">Tes pièces seront toujours en bas du plateau.</p>
+    <div class="options">
+      <button type="button" data-c="w"><span class="pion" id="pionBlanc"></span><span class="t">Les blancs</span><span class="d">Tu commences</span></button>
+      <button type="button" data-c="b"><span class="pion fonce" id="pionNoir"></span><span class="t">Les noirs</span><span class="d">Hartwig commence</span></button>
+      <button type="button" data-c="hasard"><span class="pion mix" id="pionHasard"></span><span class="t">Au hasard</span><span class="d">Tirage au sort</span></button>
+    </div>
+    <button type="button" class="act" id="btnAnnulerCouleur" style="margin-top:14px;width:100%;" hidden>Continuer ma partie en cours</button>
   </div>
 </div>
 
@@ -458,9 +551,24 @@
 
 const NOMS_FR = { k:'roi', q:'dame', r:'tour', b:'fou', n:'cavalier', p:'pion' };
 // Pièces "E prime" — hommage Hartwig (Bauhaus 1924) : la forme décrit le mouvement
+// Jeu classique dune en option : même logique, autres symboles (#c_…)
 function pieceSVG(type, couleurChess){
-  return '<svg class="piece ' + (couleurChess === 'w' ? 'b' : 'n') + '" viewBox="0 0 100 100" aria-hidden="true"><use href="#p_' + type + '"/></svg>';
+  const classique = reglages.pieces === 'classique';
+  return '<svg class="piece ' + (couleurChess === 'w' ? 'b' : 'n') + (classique ? ' classique' : '')
+    + '" viewBox="0 0 100 100" aria-hidden="true"><use href="#' + (classique ? 'c_' : 'p_') + type + '"/></svg>';
 }
+
+/* Couleur du joueur, choisie avant chaque partie. Hartwig prend l'autre camp. */
+let couleurJoueur = 'b';                       // 'w' | 'b'
+let attenteCouleur = true;                     // tant que le joueur n'a pas choisi, personne ne joue
+const campMoteur = () => (couleurJoueur === 'w' ? 'b' : 'w');
+const NOM_CAMP = { w:'blancs', b:'noirs' };
+// Le plateau est vu depuis le camp du joueur (ou depuis le camp joué dans la partie relue)
+function vueCouleur(){ return (revue && revue.info && revue.info.couleur) ? revue.info.couleur : couleurJoueur; }
+
+/* Réglages du plateau, propres à chaque profil (enregistrés côté serveur) */
+const VUE_DEFAUT = { angle:0, bascule:null, zoom:1 };
+let reglages = { pieces:'hartwig', nuance:'cuite', mode:'2d', vue:{ ...VUE_DEFAUT } };
 
 /* Chaque niveau combine trois leviers : la force de calcul de Stockfish
    (skill/temps/profondeur) ET un taux d'imprécisions volontaires (alea) :
@@ -687,6 +795,9 @@ function choisirProfil(pr){
   profilActif = pr;
   localStorage.setItem('dune_profil', String(pr.id));
   $('btnQui').textContent = pr.nom;
+  // Réglages du plateau propres à ce joueur (pièces, cases, 2D/3D, angle de vue)
+  appliquerReglages(pr.reglages || lireReglagesLocaux(pr.id));
+  let reprise = false;
   // Reprise d'une partie interrompue (si elle appartient à ce profil)
   try{
     const memoP = localStorage.getItem('dune_encours');
@@ -696,6 +807,9 @@ function choisirProfil(pr){
         const t = new Chess();
         if(t.load_pgn(dp.pgn) && !t.game_over()){
           game = t;
+          couleurJoueur = (dp.couleur === 'w') ? 'w' : 'b';   // parties d'avant la v30 : le joueur avait les noirs
+          attenteCouleur = false;
+          reprise = true;
           const h = game.history({ verbose:true });
           dernierCoup = h.length ? { from:h[h.length-1].from, to:h[h.length-1].to } : null;
           if(typeof dp.niveau === 'number' && dp.niveau >= 0 && dp.niveau <= 3){
@@ -704,8 +818,9 @@ function choisirProfil(pr){
           }
           dessiner(); majBoutons();
           majStatut('<strong>Partie reprise où tu l\'avais laissée.</strong><span class="trait">'
-            + (game.turn() === 'b' ? 'À toi de jouer' : 'Je joue dès que je suis prêt') + '</span>');
-          if(game.turn() === 'w'){
+            + 'Tu as les ' + NOM_CAMP[couleurJoueur] + ' · '
+            + (game.turn() === couleurJoueur ? 'à toi de jouer' : 'je joue dès que je suis prêt') + '</span>');
+          if(game.turn() === campMoteur()){
             const attend = setInterval(() => {
               if(Moteur.estPret()){ clearInterval(attend); coupDuMoteur(); }
             }, 400);
@@ -720,6 +835,48 @@ function choisirProfil(pr){
     [...$('niveaux').children].forEach((x, i) => x.setAttribute('aria-pressed', i === niveau ? 'true' : 'false'));
   }
   $('accueil').classList.add('off');
+  // Pas de partie en cours : on demande la couleur avant de commencer
+  if(!reprise && game && game.history().length === 0 && !partieFinie) demanderCouleur();
+}
+
+/* ------------------------------------------------------------
+   0 bis. Choix de la couleur, avant chaque partie
+   ------------------------------------------------------------ */
+function demanderCouleur(){
+  const enCours = game && game.history().length > 0 && !partieFinie && !revue;
+  $('btnAnnulerCouleur').hidden = !enCours;
+  $('sousCouleur').textContent = enCours
+    ? 'La partie en cours sera abandonnée. Tes pièces seront toujours en bas du plateau.'
+    : 'Tes pièces seront toujours en bas du plateau.';
+  attenteCouleur = true;
+  $('pionBlanc').innerHTML = pieceSVG('k', 'w');
+  $('pionNoir').innerHTML = pieceSVG('k', 'b');
+  $('pionHasard').innerHTML = pieceSVG('p', Math.random() < .5 ? 'w' : 'b');
+  $('titreCouleur').textContent = (profilActif ? profilActif.nom + ', tu' : 'Tu') + ' prends quelles pièces ?';
+  majStatut('<strong>Nouvelle partie.</strong><span class="trait">Choisis ta couleur</span>');
+  majBoutons();
+  $('voileCouleur').classList.add('on');
+  const b = $('voileCouleur').querySelector('button');
+  if(b) b.focus();
+}
+
+function lancerPartie(choix){
+  couleurJoueur = (choix === 'hasard') ? (Math.random() < .5 ? 'w' : 'b') : choix;
+  attenteCouleur = false;
+  $('voileCouleur').classList.remove('on');
+  game = new Chess();
+  revue = null;
+  localStorage.removeItem('dune_encours');
+  selection = null; coupsLegaux = []; dernierCoup = null; partieFinie = false; resultatPartie = null;
+  $('coach').innerHTML = '<p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ».</p>';
+  dessiner(); majBoutons();
+  const tirage = (choix === 'hasard') ? 'Tirage au sort : ' : '';
+  if(couleurJoueur === 'w'){
+    majStatut('<strong>' + tirage + 'tu as les blancs.</strong><span class="trait">À toi d\'ouvrir la partie</span>');
+  }else{
+    majStatut('<strong>' + tirage + 'tu as les noirs.</strong><span class="trait">Hartwig ouvre la partie</span>');
+    ouvertureDuMoteur();
+  }
 }
 
 /* ------------------------------------------------------------
@@ -842,11 +999,14 @@ function dessiner(){
   const g = plateauActif();
   const plateau = g.board();
   const roiEnEchec = g.in_check() ? trouverRoiDe(g) : null;
+  const depuisNoirs = vueCouleur() === 'b';
+  dessinerCoords();
 
-  // Vue depuis les noirs : rangée 1 en haut, colonne h à gauche
+  // Tes pièces toujours en bas. Vue des blancs : a1 en bas à gauche.
+  // Vue des noirs : h8 en bas à gauche (rangée 1 en haut, colonne h à gauche).
   for(let vr = 0; vr < 8; vr++){
     for(let vc = 0; vc < 8; vc++){
-      const r = 7 - vr, c = 7 - vc;
+      const r = depuisNoirs ? 7 - vr : vr, c = depuisNoirs ? 7 - vc : vc;
       const nom = caseDe(c, r);
       const d = document.createElement('div');
       d.className = 'sq ' + ((r + c) % 2 === 0 ? 'claire' : 'foncee');
@@ -887,15 +1047,20 @@ function trouverRoiDe(g, couleur){
   return null;
 }
 
+// Coordonnées gravées dans le cadre : elles suivent le sens du plateau
 function dessinerCoords(){
-  $('coordFichiers').innerHTML = FICHIERS.slice().reverse().map(f => '<span>' + f + '</span>').join('');
-  $('coordRangs').innerHTML = [1,2,3,4,5,6,7,8].map(r => '<span>' + r + '</span>').join('');
+  const noirs = vueCouleur() === 'b';
+  const fichiers = noirs ? FICHIERS.slice().reverse() : FICHIERS.slice();
+  const rangs = noirs ? [1,2,3,4,5,6,7,8] : [8,7,6,5,4,3,2,1];
+  $('coordFichiers').innerHTML = fichiers.map(f => '<span>' + f + '</span>').join('');
+  $('coordRangs').innerHTML = rangs.map(r => '<span>' + r + '</span>').join('');
 }
 
 function ajusterTaille(){
   const z = $('zonePlateau');
   const dispo = Math.min(z.clientWidth - 28, z.clientHeight - 38);
-  const sq = Math.max(30, Math.floor((dispo - 26) / 8));
+  // plateau de 8 cases + cadre alu de 0,42 case de chaque côté
+  const sq = Math.max(30, Math.floor(dispo / 8.84));
   document.documentElement.style.setProperty('--sq', sq + 'px');
 }
 
@@ -906,7 +1071,7 @@ let drag = null;
 
 function estAMoi(nom){
   const p = game.get(nom);
-  return p && p.color === 'b';
+  return p && p.color === couleurJoueur;
 }
 
 function selectionner(nom){
@@ -927,7 +1092,7 @@ function caseSousPoint(x, y){
 }
 
 $('board').addEventListener('pointerdown', (e) => {
-  if(revue || partieFinie || moteurPense || game.turn() !== 'b') return;
+  if(revue || partieFinie || moteurPense || attenteCouleur || game.turn() !== couleurJoueur) return;
   const sq = e.target.closest('.sq');
   if(!sq) return;
   const nom = sq.dataset.case;
@@ -1009,7 +1174,8 @@ function expliquerRefus(from, to){
   if(p.type === 'k' && dr === 0 && df === 2){
     const droits = game.fen().split(' ')[2];
     const petit = f2 > f1;
-    if((petit && droits.indexOf('k') === -1) || (!petit && droits.indexOf('q') === -1))
+    const kR = couleurJoueur === 'w' ? 'K' : 'k', qR = couleurJoueur === 'w' ? 'Q' : 'q';
+    if((petit && droits.indexOf(kR) === -1) || (!petit && droits.indexOf(qR) === -1))
       return 'ce roque n\'est plus permis : ton roi ou la tour concernée a déjà bougé dans la partie, et ce droit se perd définitivement.';
     if(game.in_check()) return 'on ne roque jamais quand le roi est en échec.';
     return 'le roque exige que toutes les cases entre roi et tour soient vides, et que le roi ne parte pas d\'une case attaquée, n\'en traverse pas et n\'y arrive pas.';
@@ -1150,9 +1316,9 @@ async function coupDuMoteur(){
   majBoutons();
 }
 
-// Les blancs sont au moteur : il ouvre la partie.
+// Quand Hartwig a les blancs, c'est lui qui ouvre la partie.
 function ouvertureDuMoteur(){
-  if(!Moteur.estPret() || partieFinie) return;
+  if(!Moteur.estPret() || partieFinie || attenteCouleur || campMoteur() !== 'w') return;
   if(game.history().length > 0) return;
   majStatut('<strong>J\'ouvre la partie…</strong><span class="trait">Hartwig · ' + NIVEAUX[niveau].nom + '</span>');
   setTimeout(coupDuMoteur, 200);
@@ -1204,7 +1370,7 @@ function sauvegarderEnCours(){
   try{
     if(partieFinie || game.history().length === 0){ localStorage.removeItem('dune_encours'); return; }
     localStorage.setItem('dune_encours', JSON.stringify({
-      pgn: game.pgn(), niveau, profil: profilActif ? profilActif.id : null
+      pgn: game.pgn(), niveau, couleur: couleurJoueur, profil: profilActif ? profilActif.id : null
     }));
   }catch(e){}
 }
@@ -1214,7 +1380,7 @@ function verifierFin(){
   partieFinie = true;
   let txt;
   if(game.in_checkmate()){
-    if(game.turn() === 'b'){ txt = '<strong>Échec et mat — j\'ai gagné.</strong>'; resultatPartie = 'Défaite'; }
+    if(game.turn() === couleurJoueur){ txt = '<strong>Échec et mat — j\'ai gagné.</strong>'; resultatPartie = 'Défaite'; }
     else { txt = '<strong>Échec et mat — tu m\'as battu.</strong>'; resultatPartie = 'Victoire'; }
   }
   else if(game.in_stalemate()){ txt = '<strong>Pat — partie nulle.</strong>'; resultatPartie = 'Nulle'; }
@@ -1239,6 +1405,7 @@ async function enregistrerPartie(){
         resultat: resultatPartie,
         niveau: NIVEAUX[niveau].nom,
         nb_coups: Math.ceil(game.history().length / 2),
+        couleur: couleurJoueur,
         profil: profilActif ? profilActif.id : null
       })
     });
@@ -1261,14 +1428,14 @@ async function faireDebrief(){
     let cp = null;
     if(tmp.game_over()){
       // Position finale : le verdict est connu, inutile d'interroger Hartwig
-      if(tmp.in_checkmate()) cp = (tmp.turn() === 'w' ? 9999 : -9999);
+      if(tmp.in_checkmate()) cp = (tmp.turn() === campMoteur() ? 9999 : -9999);
       else cp = 0;
     }else{
       try{
         const r = await Moteur.chercher(tmp.fen(), { skill:20, movetime:120, depth:10 });
         if(r){
-          if(r.mat !== null && r.mat !== undefined) cp = ((tmp.turn() === 'b' ? r.mat : -r.mat) > 0 ? 9999 : -9999);
-          else if(r.score !== null && r.score !== undefined) cp = (tmp.turn() === 'b' ? r.score : -r.score);
+          if(r.mat !== null && r.mat !== undefined) cp = ((tmp.turn() === couleurJoueur ? r.mat : -r.mat) > 0 ? 9999 : -9999);
+          else if(r.score !== null && r.score !== undefined) cp = (tmp.turn() === couleurJoueur ? r.score : -r.score);
         }
       }catch(e){}
     }
@@ -1280,7 +1447,7 @@ async function faireDebrief(){
     const rep = await fetch('/api/debrief', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ pgn: game.pgn(), resultat: resultatPartie, niveau: NIVEAUX[niveau].nom, evals, profil: profilActif ? profilActif.id : null })
+      body: JSON.stringify({ pgn: game.pgn(), resultat: resultatPartie, niveau: NIVEAUX[niveau].nom, evals, couleur: couleurJoueur, profil: profilActif ? profilActif.id : null })
     });
     const data = await rep.json().catch(() => ({}));
     if(!rep.ok) throw new Error(data.erreur || ('HTTP ' + rep.status));
@@ -1298,7 +1465,7 @@ async function faireDebrief(){
 
 /* --- Un indice : le coach oriente sans donner le coup --- */
 async function demanderIndice(){
-  if(partieFinie || moteurPense || revue || game.turn() !== 'b') return;
+  if(partieFinie || moteurPense || revue || attenteCouleur || game.turn() !== couleurJoueur) return;
   const b = $('btnIndice');
   b.disabled = true; b.textContent = 'Je regarde…';
   const coach = $('coach');
@@ -1355,7 +1522,7 @@ async function afficherParties(){
       const d = new Date(p.date);
       const quand = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
       return '<button class="act" style="width:100%;text-align:left;margin:3px 0;padding:9px 10px;font-size:11.5px;" onclick="ouvrirRevue(' + p.id + ')">'
-        + quand + ' — <b>' + p.resultat + '</b> · ' + p.niveau + ' · ' + p.nb_coups + ' coups</button>';
+        + quand + ' — <b>' + p.resultat + '</b> · ' + (p.couleur === 'w' ? 'blancs' : 'noirs') + ' · ' + p.niveau + ' · ' + p.nb_coups + ' coups</button>';
     });
     coach.innerHTML = entete + '<p class="vide" style="margin:4px 0 8px;">Touche une partie pour la revoir coup par coup.</p>' + lignes.join('');
   }catch(e){
@@ -1372,7 +1539,7 @@ function demanderPromotion(suite){
   box.innerHTML = '';
   ['q','r','b','n'].forEach(t => {
     const b = document.createElement('button');
-    b.innerHTML = pieceSVG(t, 'b');
+    b.innerHTML = pieceSVG(t, couleurJoueur);
     b.title = NOMS_FR[t];
     b.onclick = () => { $('voile').classList.remove('on'); suite(t); };
     box.appendChild(b);
@@ -1405,12 +1572,12 @@ async function expliquer(){
     const aAvant = await Moteur.chercher(fenAvant, { skill:20, movetime:900, depth:14 });
     const aApres = await Moteur.chercher(fenApres, { skill:20, movetime:900, depth:14 });
 
-    // Normalisation des scores du point de vue du joueur (les noirs)
+    // Normalisation des scores du point de vue du joueur (quelle que soit sa couleur)
     const norm = (r, trait) => {
       if(!r) return null;
-      if(r.mat !== null && r.mat !== undefined) return { mat: (trait === 'b' ? r.mat : -r.mat) };
+      if(r.mat !== null && r.mat !== undefined) return { mat: (trait === couleurJoueur ? r.mat : -r.mat) };
       if(r.score === null || r.score === undefined) return null;
-      return { cp: (trait === 'b' ? r.score : -r.score) };
+      return { cp: (trait === couleurJoueur ? r.score : -r.score) };
     };
     const evAvant = norm(aAvant, avant.turn());
     const evApres = norm(aApres, game.turn());
@@ -1433,7 +1600,7 @@ async function expliquer(){
 
   let chiffres = '';
   if(bloc){
-    chiffres = 'Coup joué : <b>' + dernier.san + '</b> par ' + (dernier.color === 'w' ? 'Hartwig' : 'toi') + '<br>'
+    chiffres = 'Coup joué : <b>' + dernier.san + '</b> par ' + (dernier.color === campMoteur() ? 'Hartwig' : 'toi') + '<br>'
              + 'Évaluation avant : ' + fmt(bloc.evAvant) + '<br>'
              + 'Évaluation après : ' + fmt(bloc.evApres)
              + (bloc.alternative ? '<br>Hartwig préférait : <b>' + bloc.alternative + '</b>' : '');
@@ -1441,11 +1608,11 @@ async function expliquer(){
 
   const contexte = [
     'Position de départ standard, partie en cours.',
-    'Le joueur humain (que tu tutoies) a les noirs. Son adversaire est le moteur Stockfish, surnommé Hartwig — désigne-le toujours par ce nom, avec les blancs.',
+    'Le joueur humain (que tu tutoies) a les ' + NOM_CAMP[couleurJoueur] + '. Son adversaire est le moteur Stockfish, surnommé Hartwig — désigne-le toujours par ce nom, avec les ' + NOM_CAMP[campMoteur()] + '.',
     'Coups joués (PGN) : ' + (game.pgn() || '(aucun)'),
-    'Dernier demi-coup : ' + dernier.san + ' joué par ' + (dernier.color === 'w' ? 'Hartwig (blancs)' : 'le joueur (noirs)') + '.',
+    'Dernier demi-coup : ' + dernier.san + ' joué par ' + (dernier.color === campMoteur() ? 'Hartwig (' + NOM_CAMP[campMoteur()] + ')' : 'le joueur (' + NOM_CAMP[couleurJoueur] + ')') + '.',
     'FEN après ce coup : ' + fenApres,
-    'Convention des évaluations ci-dessous : un score positif est à l\'avantage des noirs (le joueur), un score négatif à l\'avantage des blancs (Hartwig).',
+    'Convention des évaluations ci-dessous : un score positif est à l\'avantage des ' + NOM_CAMP[couleurJoueur] + ' (le joueur), un score négatif à l\'avantage des ' + NOM_CAMP[campMoteur()] + ' (Hartwig).',
     bloc ? ('Évaluation Stockfish avant le coup : ' + fmt(bloc.evAvant)) : '',
     bloc ? ('Évaluation Stockfish après le coup : ' + fmt(bloc.evApres)) : '',
     (bloc && bloc.alternative) ? ('Coup que Hartwig préférait à la place : ' + bloc.alternative) : '',
@@ -1525,7 +1692,7 @@ function fermerRevue(){
   dessiner();
   majBoutons();
   majStatut('<strong>Retour à ta partie.</strong><span class="trait">'
-    + (partieFinie ? 'Partie terminée' : (game.turn() === 'b' ? 'À toi de jouer' : 'Hartwig au trait')) + '</span>');
+    + (partieFinie ? 'Partie terminée' : (game.turn() === couleurJoueur ? 'À toi de jouer' : 'Hartwig au trait')) + '</span>');
 }
 
 /* ------------------------------------------------------------
@@ -1535,11 +1702,12 @@ function majStatut(html){ $('statut').innerHTML = html; }
 
 function majBoutons(){
   const hist = game.history();
-  const bloque = moteurPense || !!revue;
+  const bloque = moteurPense || !!revue || attenteCouleur;
+  $('btnNouvelle').disabled = moteurPense;
   $('btnExplique').disabled  = bloque || hist.length === 0;
-  $('btnReprendre').disabled = bloque || hist.length < 3 || partieFinie;
+  $('btnReprendre').disabled = bloque || hist.length < (couleurJoueur === 'w' ? 2 : 3) || partieFinie;
   $('btnDebrief').disabled   = bloque || !partieFinie;
-  $('btnIndice').disabled    = bloque || partieFinie || game.turn() !== 'b';
+  $('btnIndice').disabled    = bloque || partieFinie || game.turn() !== couleurJoueur;
 }
 
 function majCoups(){
@@ -1564,20 +1732,27 @@ $('niveaux').addEventListener('click', (e) => {
   }
 });
 
+// Nouvelle partie : on repasse par le choix de la couleur
 $('btnNouvelle').onclick = () => {
-  game = new Chess();
-  revue = null;
-  localStorage.removeItem('dune_encours');
-  selection = null; coupsLegaux = []; dernierCoup = null; partieFinie = false; resultatPartie = null;
-  $('coach').innerHTML = '<p class="vide">Joue un coup, puis appuie sur « Explique-moi ce coup ».</p>';
-  dessiner(); majBoutons();
-  ouvertureDuMoteur();
+  if(moteurPense) return;
+  demanderCouleur();
+};
+$('voileCouleur').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-c]');
+  if(b) lancerPartie(b.dataset.c);
+});
+$('btnAnnulerCouleur').onclick = () => {
+  attenteCouleur = false;
+  $('voileCouleur').classList.remove('on');
+  majBoutons();
+  majStatut('<strong>On continue.</strong><span class="trait">Tu as les ' + NOM_CAMP[couleurJoueur] + ' · '
+    + (game.turn() === couleurJoueur ? 'à toi de jouer' : 'Hartwig au trait') + '</span>');
 };
 
 $('btnReprendre').onclick = () => {
   if(moteurPense) return;
-  game.undo();                        // coup du moteur
-  if(game.turn() !== 'b') game.undo(); // ton coup
+  game.undo();                                    // coup du moteur
+  if(game.turn() !== couleurJoueur) game.undo();   // ton coup
   const h = game.history({ verbose:true });
   dernierCoup = h.length ? { from:h[h.length-1].from, to:h[h.length-1].to } : null;
   selection = null; coupsLegaux = []; partieFinie = false;
@@ -1608,14 +1783,16 @@ function chargerTroisJS(){
   });
 }
 
-// Correspondance case <-> position 3D (vue depuis les noirs : rangée 8 côté joueur)
+// Correspondance case <-> position 3D. Le joueur est côté +z (devant la caméra) :
+// vue des noirs = rangée 8 et colonne a à droite côté joueur ; vue des blancs = rangée 1, colonne a à gauche.
 function posCase(nom){
   const f = nom.charCodeAt(0) - 97;
   const r = parseInt(nom[1], 10);
-  return { x: 3.5 - f, z: r - 4.5 };
+  return vueCouleur() === 'w' ? { x: f - 3.5, z: 4.5 - r } : { x: 3.5 - f, z: r - 4.5 };
 }
 function caseDepuisPos(x, z){
-  const f = Math.round(3.5 - x), r = Math.round(z + 4.5);
+  const blancs = vueCouleur() === 'w';
+  const f = Math.round(blancs ? x + 3.5 : 3.5 - x), r = Math.round(blancs ? 4.5 - z : z + 4.5);
   if(f < 0 || f > 7 || r < 1 || r > 8) return null;
   return String.fromCharCode(97 + f) + r;
 }
@@ -1625,16 +1802,19 @@ function construireScene(){
 
   const zone = document.createElement('div');
   zone.id = 'zone3d';
-  zone.style.cssText = 'position:absolute;inset:0;display:none;';
+  // Fond noir, halo discret derrière le plateau : le cadre alu ressort
+  zone.style.cssText = 'position:absolute;inset:0;display:none;touch-action:none;'
+    + 'background:radial-gradient(ellipse 70% 75% at 50% 48%, #2A2724 0%, #151412 55%, #0B0A09 100%);';
   $('zonePlateau').style.position = 'relative';
   $('zonePlateau').appendChild(zone);
 
-  const scene = new T.Scene();
-  scene.background = new T.Color(0xF7F5F0);
+  const scene = new T.Scene();   // fond transparent : c'est le fond noir de la zone qui se voit
 
   const camera = new T.PerspectiveCamera(40, 1, 0.1, 100);
 
-  const renderer = new T.WebGLRenderer({ antialias:true });
+  const renderer = new T.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setClearColor(0x000000, 0);
+  renderer.domElement.style.touchAction = 'none';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
@@ -1660,8 +1840,8 @@ function construireScene(){
   pmrem.dispose();
 
   // Lumière d'atelier : douce, latérale, ombres tendres
-  scene.add(new T.AmbientLight(0xFFFFFF, 0.13));
-  const soleil = new T.DirectionalLight(0xFFF2E3, 0.8);   // chaleur gravée (nuancier : 30)
+  scene.add(new T.AmbientLight(0xFFFFFF, 0.16));
+  const soleil = new T.DirectionalLight(0xFFF2E3, 0.85);   // chaleur gravée (nuancier : 30)
   soleil.position.set(-9, 9.2, -6);   // nord-ouest ~40° : l'ombre part vers la droite du plateau, déport réduit
   soleil.castShadow = true;
   soleil.shadow.mapSize.set(2048, 2048);
@@ -1671,14 +1851,14 @@ function construireScene(){
   soleil.shadow.camera.top = 14;   soleil.shadow.camera.bottom = -14;
   scene.add(soleil);
   // Contre-jour discret : modèle les volumes sans écraser les ombres
-  const contre = new T.DirectionalLight(0xFFE9D0, 0.2);
+  const contre = new T.DirectionalLight(0xFFE9D0, 0.25);
   contre.position.set(-2, 5, 9);   // relevé avant : la lumière venant du nord, on débouche les faces côté joueur
   scene.add(contre);
 
   // Fiche matériaux : calcaire adouci, basalte, alu brossé, socle
   const MAT = {
-    claire: new T.MeshStandardMaterial({ color:0xECE7DA, roughness:0.6 }),    // calcaire satiné
-    foncee: new T.MeshStandardMaterial({ color:0x45413A, roughness:0.55 }),   // basalte
+    claire: new T.MeshStandardMaterial({ roughness:0.58 }),   // teinte posée par appliquerNuance3D()
+    foncee: new T.MeshStandardMaterial({ roughness:0.58 }),
     alu:    new T.MeshStandardMaterial({ color:0xCFCBC2, roughness:0.3, metalness:0.95 }),
     socle:  new T.MeshStandardMaterial({ color:0x242424, roughness:0.42, metalness:0.4 }),  // fonte d'alu anthracite
     blanc:  new T.MeshPhysicalMaterial({ color:0xE9E2D0, roughness:0.42, clearcoat:0.35, clearcoatRoughness:0.25 }), // crème laqué doux
@@ -1693,6 +1873,8 @@ function construireScene(){
   MAT.socle.envMapIntensity  = 0.55;
   MAT.blanc.envMapIntensity  = 0.5;
   MAT.noir.envMapIntensity   = 0.35;
+  // Sur fond noir, le noir des pièces doit rester un vrai noir (teinte saisie en sRGB)
+  MAT.noir.color.convertSRGBToLinear();
 
   // Boîte aux arêtes adoucies : congé discret sur tous les chants
   function boiteAdoucie(w, h, prof, r){
@@ -1721,9 +1903,8 @@ function construireScene(){
     const sombre = (f + r) % 2 === 1;   // a1 sombre, comme il se doit
     // Chaque dalle a sa nuance propre : la pierre n'est jamais uniforme
     const matCase = (sombre ? MAT.foncee : MAT.claire).clone();
-    const delta = (Math.random() - 0.5) * 0.04;
-    matCase.color.offsetHSL(0, 0, delta);
-    matCase.envMapIntensity = sombre ? 0.25 : 0.4;
+    const delta = (Math.random() - 0.5) * 0.035;   // la teinte elle-même vient de la nuance choisie
+    matCase.envMapIntensity = 0.35;
     const m = new T.Mesh(geoCase, matCase);
     const pos = posCase(nom);
     m.position.set(pos.x, 0, pos.z);
@@ -1774,10 +1955,13 @@ function construireScene(){
     m.rotation.x = -Math.PI / 2;
     m.position.set(x, 0.078, z);
     scene.add(m);
+    return m;
   }
+  // Lettres côté joueur, chiffres à gauche : repositionnées selon la couleur (placerEtiquettes3D)
+  const etiquettes = [];
   try{
-    for(let f = 0; f < 8; f++) etiquette(String.fromCharCode(97 + f), 3.5 - f, 4.12);
-    for(let r = 1; r <= 8; r++) etiquette(String(r), -4.12, r - 4.5);
+    for(let f = 0; f < 8; f++){ const l = String.fromCharCode(97 + f); etiquettes.push({ m: etiquette(l, 0, 4.12), fichier: l }); }
+    for(let r = 1; r <= 8; r++) etiquettes.push({ m: etiquette(String(r), -4.12, 0), rang: r });
   }catch(eEtiq){ window.__err3d = 'étiquettes — ' + (eEtiq && eEtiq.message ? eEtiq.message : eEtiq); }
   const socle = new T.Mesh(boiteAdoucie(8.9, 0.37, 8.9, 0.03), MAT.socle);
   socle.position.y = -0.285;   // dessus du socle au contact exact du dessous du cadre
@@ -1786,7 +1970,7 @@ function construireScene(){
   scene.add(socle);
 
   // La table invisible : l'objet porte son ombre au sol — c'est elle qui donne le poids
-  const tapis = new T.Mesh(new T.PlaneGeometry(50, 50), new T.ShadowMaterial({ opacity: 0.225 }));   // ombre gravée (nuancier : 50)
+  const tapis = new T.Mesh(new T.PlaneGeometry(50, 50), new T.ShadowMaterial({ opacity: 0.5 }));   // plus dense sur fond noir   // ombre gravée (nuancier : 50)
   tapis.rotation.x = -Math.PI / 2;
   tapis.position.y = -0.472;
   tapis.receiveShadow = true;
@@ -1810,7 +1994,62 @@ function construireScene(){
     coin:  new T.PlaneGeometry(0.2, 0.2)
   };
 
+  // ---- Jeu classique dune en 3D : les mêmes silhouettes, tournées comme sur un tour à bois ----
+  let geoC = null;
+  function geoClassique(){
+    if(geoC) return geoC;
+    const tour = (pts) => new T.LatheGeometry(pts.map(p => new T.Vector2(p[0], p[1])), 40);
+    const SOCLE = [[0,0],[.31,0],[.31,.07],[.27,.10],[.22,.12]];
+    const knightPts = [[34,78],[38,60],[31,57],[26,55],[21,48],[21,45],[24,39],[28,35],[42,24],[41,11],[48,12],[53,17],[62,20],[71,35],[73,48],[71,64],[69,78]];
+    const forme = new T.Shape();
+    knightPts.forEach((p, i) => {
+      const x = (p[0] - 50) / 100 * 0.78, y = (82 - p[1]) / 100 * 0.95 + 0.10;
+      if(i === 0) forme.moveTo(x, y); else forme.lineTo(x, y);
+    });
+    forme.closePath();
+    const tete = new T.ExtrudeGeometry(forme, { depth:0.2, bevelEnabled:true, bevelThickness:0.03, bevelSize:0.02, bevelSegments:2 });
+    tete.translate(0, 0, -0.1);
+    geoC = {
+      p: tour(SOCLE.concat([[.15,.20],[.11,.34],[.17,.37],[.17,.40],[.08,.42],[0,.42]])),
+      pTete: new T.SphereGeometry(0.13, 28, 20),
+      r: tour(SOCLE.concat([[.21,.15],[.19,.54],[.25,.57],[.25,.68],[0,.68]])),
+      creneau: new T.BoxGeometry(0.12, 0.12, 0.09),
+      n: tour(SOCLE.concat([[.22,.13],[0,.13]])),
+      nTete: tete,
+      b: tour(SOCLE.concat([[.16,.22],[.11,.52],[.19,.55],[.19,.59],[.12,.61],[.15,.70],[.13,.82],[.07,.90],[0,.93]])),
+      bouton: new T.SphereGeometry(0.05, 16, 12),
+      q: tour(SOCLE.concat([[.18,.24],[.12,.62],[.22,.66],[.22,.70],[.15,.72],[.22,.92],[.17,.92],[.09,.86],[0,.88]])),
+      perle: new T.SphereGeometry(0.042, 12, 10),
+      k: tour(SOCLE.concat([[.18,.24],[.12,.70],[.22,.74],[.22,.78],[.16,.80],[.20,.93],[.12,1.01],[0,1.03]])),
+      croixV: new T.BoxGeometry(0.06, 0.24, 0.06),
+      croixH: new T.BoxGeometry(0.17, 0.06, 0.06)
+    };
+    return geoC;
+  }
+  function classique3D(type, couleur){
+    const G = geoClassique();
+    const mat = couleur === 'w' ? MAT.blanc : MAT.noir;
+    const g = new T.Group();
+    const pose = (geoX, x, y, z, ry) => {
+      const m = new T.Mesh(geoX, mat);
+      m.position.set(x || 0, y || 0, z || 0);
+      if(ry) m.rotation.y = ry;
+      m.castShadow = true;
+      g.add(m);
+      return m;
+    };
+    pose(G[type]);
+    if(type === 'p') pose(G.pTete, 0, .53, 0);
+    if(type === 'r') for(let i = 0; i < 4; i++){ const a = Math.PI / 4 + i * Math.PI / 2; pose(G.creneau, Math.cos(a) * .18, .74, Math.sin(a) * .18, -a); }
+    if(type === 'n') pose(G.nTete);   // de profil face au joueur, tête vers la gauche, comme sur un diagramme
+    if(type === 'b') pose(G.bouton, 0, .97, 0);
+    if(type === 'q'){ for(let i = 0; i < 8; i++){ const a = i * Math.PI / 4; pose(G.perle, Math.cos(a) * .2, .94, Math.sin(a) * .2); } pose(G.bouton, 0, .92, 0); }
+    if(type === 'k'){ pose(G.croixV, 0, 1.14, 0); pose(G.croixH, 0, 1.16, 0); }
+    return g;
+  }
+
   function piece3D(type, couleur){
+    if(reglages.pieces === 'classique') return classique3D(type, couleur);
     const mat = couleur === 'w' ? MAT.blanc : MAT.noir;
     const g = new T.Group();
     const pose = (geoX, y, opt) => {
@@ -1839,7 +2078,10 @@ function construireScene(){
   // ---- Toucher : rayon depuis le doigt vers le plateau ----
   const ray = new T.Raycaster();
   renderer.domElement.addEventListener('pointerdown', (e) => {
-    if(revue || partieFinie || moteurPense || game.turn() !== 'b') return;
+    if(e.pointerType === 'mouse' && e.button !== 0) return;   // clic droit : réservé à la rotation
+    if(Geste3D.doigts() > 1) return;                           // deux doigts : on règle la vue, on ne joue pas
+    if(revue || partieFinie || moteurPense || attenteCouleur || game.turn() !== couleurJoueur) return;
+    Geste3D.marquerToucher();
     const rect = renderer.domElement.getBoundingClientRect();
     const nd = new T.Vector2(
       ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -1855,10 +2097,25 @@ function construireScene(){
 
   renderer.setAnimationLoop(() => renderer.render(scene, camera));
 
-  trois = { T, scene, camera, renderer, zone, casesMesh, groupePieces, groupeMarques, MAT, geo, piece3D };
+  trois = { T, scene, camera, renderer, zone, casesMesh, casesInfo, etiquettes, groupePieces, groupeMarques, MAT, geo, piece3D };
+  installerGestes3D(renderer.domElement);
+  appliquerNuance3D();
   tailler3D();
 }
 
+/* Point de vue 3D : on tourne autour du même point visé que la vue d'origine.
+   angle = rotation autour du plateau, bascule = inclinaison (57° au repos), zoom = rapprochement. */
+const BASCULE_REPOS = Math.atan2(10.9 * 1.08 + 1.55, 10.9 * 0.76 + 0.2);
+const BASCULE_MIN = 25 * Math.PI / 180, BASCULE_MAX = 85 * Math.PI / 180;
+const ANGLE_MAX = 0.9, ZOOM_MIN = 0.75, ZOOM_MAX = 2.2;
+function vue3D(){
+  const v = reglages.vue || {};
+  return {
+    angle: Math.max(-ANGLE_MAX, Math.min(ANGLE_MAX, +v.angle || 0)),
+    bascule: (typeof v.bascule === 'number') ? Math.max(BASCULE_MIN, Math.min(BASCULE_MAX, v.bascule)) : BASCULE_REPOS,
+    zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, +v.zoom || 1))
+  };
+}
 function tailler3D(){
   if(!trois) return;
   const w = Math.max(50, trois.zone.clientWidth);
@@ -1868,14 +2125,112 @@ function tailler3D(){
   trois.camera.aspect = aspect;
   // La caméra recule si l'écran est étroit, pour ne jamais couper le plateau
   const d = aspect >= 1.05 ? 10.9 : Math.min(16, 10.9 / aspect * 1.02);
-  trois.camera.position.set(0, d * 1.08, d * 0.76);
-  trois.camera.lookAt(0, -1.55, -0.2);
+  const cible = { x:0, y:-1.55, z:-0.2 };
+  const v = vue3D();
+  let r = Math.hypot(d * 1.08 - cible.y, d * 0.76 - cible.z);
+  r *= 1 + Math.max(0, BASCULE_REPOS - v.bascule) * 0.35;   // plateau couché : on recule un peu pour garder le bord lointain
+  r /= v.zoom;
+  trois.camera.position.set(
+    cible.x + r * Math.cos(v.bascule) * Math.sin(v.angle),
+    cible.y + r * Math.sin(v.bascule),
+    cible.z + r * Math.cos(v.bascule) * Math.cos(v.angle));
+  trois.camera.lookAt(cible.x, cible.y, cible.z);
   trois.camera.updateProjectionMatrix();
+}
+
+/* Gestes 3D. Un doigt : on joue (inchangé). Deux doigts : glisser pour tourner et basculer,
+   pincer pour zoomer. Souris : clic droit glissé pour tourner/basculer, molette pour zoomer. */
+const Geste3D = (() => {
+  const pts = new Map();
+  let depart = null, dernierToucher = 0, selAvant = null;
+  const milieu = () => { const a = [...pts.values()]; return { x:(a[0].x + a[1].x) / 2, y:(a[0].y + a[1].y) / 2, d:Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1 }; };
+  function commencer(x, y, d){ const v = vue3D(); depart = { x, y, d, angle:v.angle, bascule:v.bascule, zoom:v.zoom }; }
+  function bouger(x, y, d){
+    if(!depart) return;
+    reglages.vue = {
+      angle: Math.max(-ANGLE_MAX, Math.min(ANGLE_MAX, depart.angle - (x - depart.x) * 0.006)),
+      bascule: Math.max(BASCULE_MIN, Math.min(BASCULE_MAX, depart.bascule + (y - depart.y) * 0.005)),
+      zoom: d ? Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, depart.zoom * d / depart.d)) : depart.zoom
+    };
+    tailler3D();
+  }
+  function finir(){ if(depart){ depart = null; sauverReglages(); } }
+  function installer(el){
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    el.addEventListener('pointerdown', (e) => {
+      if(e.pointerType === 'mouse'){
+        if(e.button === 2){ pts.set(e.pointerId, { x:e.clientX, y:e.clientY }); commencer(e.clientX, e.clientY, 0); el.setPointerCapture(e.pointerId); }
+        return;
+      }
+      pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if(pts.size === 2){
+        // Le premier doigt a pu sélectionner une pièce un instant plus tôt : on l'annule
+        if(Date.now() - dernierToucher < 400 && selection !== selAvant){ selection = null; coupsLegaux = []; dessiner(); }
+        const m = milieu(); commencer(m.x, m.y, m.d);
+      }
+    });
+    el.addEventListener('pointermove', (e) => {
+      if(!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if(e.pointerType === 'mouse'){ bouger(e.clientX, e.clientY, 0); return; }
+      if(pts.size === 2){ const m = milieu(); bouger(m.x, m.y, m.d); }
+    });
+    const lever = (e) => { pts.delete(e.pointerId); if(pts.size < 2) finir(); };
+    el.addEventListener('pointerup', lever);
+    el.addEventListener('pointercancel', lever);
+    el.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const v = vue3D();
+      reglages.vue = { angle:v.angle, bascule:v.bascule, zoom:Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.zoom * Math.exp(-e.deltaY * 0.0015))) };
+      tailler3D();
+      clearTimeout(installer.t); installer.t = setTimeout(sauverReglages, 600);
+    }, { passive:false });
+  }
+  return {
+    installer,
+    doigts: () => pts.size,
+    marquerToucher: () => { dernierToucher = Date.now(); selAvant = selection; }
+  };
+})();
+function installerGestes3D(el){ Geste3D.installer(el); }
+
+function recentrer3D(){
+  reglages.vue = { ...VUE_DEFAUT };
+  tailler3D();
+  sauverReglages();
+}
+
+// Teinte des dalles selon la nuance choisie (couleurs saisies en sRGB, comme en 2D)
+const NUANCES = {
+  cuite:  { claire:'#EEECE7', foncee:'#8F5B45' },
+  cendre: { claire:'#ECECEA', foncee:'#7E5E52' }
+};
+function appliquerNuance3D(){
+  if(!trois) return;
+  const n = NUANCES[reglages.nuance] || NUANCES.cuite;
+  trois.casesInfo.forEach(ci => {
+    ci.mesh.material.color.set(ci.sombre ? n.foncee : n.claire).convertSRGBToLinear();
+    ci.mesh.material.color.offsetHSL(0, 0, ci.delta);
+  });
+}
+
+// Le plateau 3D se retourne avec la couleur : dalles et coordonnées gravées suivent
+function orienter3D(){
+  if(!trois) return;
+  const sens = vueCouleur();
+  if(trois.sens === sens) return;
+  trois.sens = sens;
+  trois.casesMesh.forEach(m => { const p = posCase(m.userData.case); m.position.x = p.x; m.position.z = p.z; });
+  trois.etiquettes.forEach(e => {
+    if(e.fichier) e.m.position.x = posCase(e.fichier + '1').x;
+    else e.m.position.z = posCase('a' + e.rang).z;
+  });
 }
 
 function synchro3D(){
   if(!trois) return;
   const T = trois.T;
+  orienter3D();
 
   while(trois.groupePieces.children.length) trois.groupePieces.remove(trois.groupePieces.children[0]);
   const gActif = plateauActif();
@@ -1944,7 +2299,7 @@ function animer3D(from, to, duree){
   });
 }
 
-async function basculerVue(forcer){
+async function basculerVue(forcer, sansSauver){
   const cible = (forcer !== undefined) ? forcer : !mode3D;
   if(cible){
     try{
@@ -1957,6 +2312,7 @@ async function basculerVue(forcer){
       tailler3D();
       synchro3D();
       $('btnVue').textContent = '2D';
+      $('btnRecentrer').hidden = false;
       if(window.__err3d){
         $('coach').innerHTML = '<p class="chiffres">Note technique 3D : '
           + String(window.__err3d).replace(/</g,'&lt;').slice(0, 220)
@@ -1975,10 +2331,53 @@ async function basculerVue(forcer){
     if(trois) trois.zone.style.display = 'none';
     document.querySelector('.plateau-wrap').style.display = '';
     $('btnVue').textContent = '3D';
+    $('btnRecentrer').hidden = true;
     ajusterTaille();
     dessiner();
   }
   localStorage.setItem('dune_vue', mode3D ? '3d' : '2d');
+  if(!sansSauver){ reglages.mode = mode3D ? '3d' : '2d'; sauverReglages(); }
+}
+
+/* ------------------------------------------------------------
+   8 bis. Réglages du plateau, par joueur
+   ------------------------------------------------------------ */
+function lireReglagesLocaux(id){
+  try{ return JSON.parse(localStorage.getItem('dune_reglages_' + id) || 'null'); }catch(e){ return null; }
+}
+function majSegments(){
+  [...$('segPieces').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === reglages.pieces ? 'true' : 'false'));
+  [...$('segNuance').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === reglages.nuance ? 'true' : 'false'));
+}
+function appliquerReglages(r){
+  r = r || {};
+  reglages = {
+    pieces: r.pieces === 'classique' ? 'classique' : 'hartwig',
+    nuance: r.nuance === 'cendre' ? 'cendre' : 'cuite',
+    mode: r.mode === '3d' ? '3d' : (r.mode === '2d' ? '2d' : (localStorage.getItem('dune_vue') === '3d' ? '3d' : '2d')),
+    vue: Object.assign({ ...VUE_DEFAUT }, r.vue || {})
+  };
+  document.body.classList.toggle('nuance-cendre', reglages.nuance === 'cendre');
+  majSegments();
+  appliquerNuance3D();
+  if(trois) tailler3D();
+  if(game) dessiner();
+  if((reglages.mode === '3d') !== mode3D) basculerVue(reglages.mode === '3d', true);
+}
+let minuterieReglages = null;
+function sauverReglages(){
+  const copie = JSON.parse(JSON.stringify(reglages));
+  if(!profilActif) return;
+  profilActif.reglages = copie;
+  try{ localStorage.setItem('dune_reglages_' + profilActif.id, JSON.stringify(copie)); }catch(e){}
+  clearTimeout(minuterieReglages);
+  const id = profilActif.id;
+  minuterieReglages = setTimeout(() => {
+    fetch('/api/profil', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id, reglages: copie })
+    }).catch(() => {});
+  }, 400);
 }
 
 /* ------------------------------------------------------------
@@ -2000,7 +2399,7 @@ function lancerMoteur(){
       $('etatMoteur').textContent = 'Hartwig indisponible';
       const bloque = /worker/i.test(String(e.message || e));
       majStatut('<strong>Hartwig n\'a pas démarré.</strong>'
-              + '<span class="trait">Tu joues les noirs : sans lui, personne n\'ouvre la partie</span>');
+              + '<span class="trait">Sans lui, pas d\'adversaire : relance-le ci-dessous</span>');
       $('coach').innerHTML =
         (bloque
           ? '<p class="erreur">Cet aperçu interdit les moteurs de calcul en tâche de fond : Stockfish ne peut pas s\'y lancer. '
@@ -2051,7 +2450,18 @@ function init(){
   };
   majVoixUI();
   $('btnVue').onclick = () => basculerVue();
-  if(localStorage.getItem('dune_vue') === '3d') basculerVue(true);
+  $('btnRecentrer').onclick = recentrer3D;
+  $('segPieces').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if(!b) return;
+    reglages.pieces = b.dataset.v; majSegments(); dessiner(); sauverReglages();
+  });
+  $('segNuance').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if(!b) return;
+    reglages.nuance = b.dataset.v;
+    document.body.classList.toggle('nuance-cendre', reglages.nuance === 'cendre');
+    majSegments(); appliquerNuance3D(); sauverReglages();
+  });
+  if(localStorage.getItem('dune_vue') === '3d') basculerVue(true, true);
   lancerMoteur();
 }
 init();

@@ -3,7 +3,7 @@
    1. Sert la page du jeu (index.html)
    2. /api/entree   : vérifie le code d'accès famille
    3. /api/profils  : liste / création des profils joueurs
-   4. /api/profil   : mise à jour du niveau préféré
+   4. /api/profil   : mise à jour du niveau préféré et des réglages du plateau
    5. /api/coach    : commentaire d'un coup (API Anthropic)
    6. /api/partie   : enregistre une partie terminée (Postgres)
    7. /api/parties  : parties + stats du profil actif
@@ -53,6 +53,9 @@ if(BDD_URL){
       cree_le TIMESTAMPTZ DEFAULT now()
     )`);
     await pool.query(`ALTER TABLE parties ADD COLUMN IF NOT EXISTS profil_id INT`);
+    // v30 : couleur jouée (w/b) et réglages du plateau par joueur
+    await pool.query(`ALTER TABLE parties ADD COLUMN IF NOT EXISTS couleur TEXT DEFAULT 'b'`);
+    await pool.query(`ALTER TABLE profils ADD COLUMN IF NOT EXISTS reglages JSONB DEFAULT '{}'::jsonb`);
     // Profils de départ (ignorés s'ils existent déjà)
     await pool.query(`INSERT INTO profils (nom, niveau_prefere, note_coach) VALUES
       ('Jérôme', 1, 'Jérôme, 57 ans, architecte. Ton direct, pragmatique, zéro flatterie, zéro jargon inutile.'),
@@ -88,9 +91,9 @@ const CONSIGNE_INDICE =
 const CONSIGNE_DEBRIEF =
   "Tu es coach d'échecs. Tu t'adresses au joueur en français, en le tutoyant ; son identité et le ton à adopter sont précisés dans les données. " +
   "Son adversaire est le moteur Stockfish, surnommé Hartwig — désigne-le par ce nom. " +
-  "Le joueur avait les noirs, Hartwig les blancs. " +
-  "Tu reçois le PGN complet et la liste des évaluations après chaque demi-coup, du point de vue de Jérôme " +
-  "(positif = avantage Jérôme, en centipions ; ±9999 = mat forcé ; null = non chiffré). " +
+  "La couleur de chaque camp est précisée dans les données. " +
+  "Tu reçois le PGN complet et la liste des évaluations après chaque demi-coup, du point de vue du joueur " +
+  "(positif = avantage du joueur, en centipions ; ±9999 = mat forcé ; null = non chiffré). " +
   "Rédige le débrief de la partie : la physionomie générale en une ou deux phrases, " +
   "puis les deux ou trois moments clés où l'évaluation a réellement basculé — cite les numéros de coups et ce qui s'est joué concrètement — " +
   "et termine par UNE leçon claire à retenir pour la prochaine partie. " +
@@ -183,7 +186,7 @@ const server = http.createServer(async (req, res) => {
           [propre, 'Invité de la famille ou proche de dune. Ton amical et direct, tutoiement.']
         );
       }
-      const r = await pool.query('SELECT id, nom, niveau_prefere FROM profils ORDER BY cree_le');
+      const r = await pool.query('SELECT id, nom, niveau_prefere, reglages FROM profils ORDER BY cree_le');
       repondre(res, 200, { profils: r.rows });
     }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
     return;
@@ -193,10 +196,27 @@ const server = http.createServer(async (req, res) => {
   if(req.method === 'POST' && req.url === '/api/profil'){
     try{
       if(!pool) throw new Error('Base de données non branchée.');
-      const { id, niveau_prefere } = await lireCorps(req);
-      const n = parseInt(niveau_prefere, 10);
-      if(!Number.isInteger(parseInt(id,10)) || !(n >= 0 && n <= 3)) throw new Error('paramètres invalides');
-      await pool.query('UPDATE profils SET niveau_prefere = $1 WHERE id = $2', [n, parseInt(id,10)]);
+      const { id, niveau_prefere, reglages } = await lireCorps(req);
+      const pid = parseInt(id, 10);
+      if(!Number.isInteger(pid)) throw new Error('paramètres invalides');
+      if(niveau_prefere !== undefined){
+        const n = parseInt(niveau_prefere, 10);
+        if(!(n >= 0 && n <= 3)) throw new Error('niveau invalide');
+        await pool.query('UPDATE profils SET niveau_prefere = $1 WHERE id = $2', [n, pid]);
+      }
+      if(reglages !== undefined){
+        // Réglages du plateau : on ne garde que les clés connues, bornées
+        const r = reglages || {};
+        const v = r.vue || {};
+        const num = (x, min, max, def) => { const f = parseFloat(x); return Number.isFinite(f) ? Math.max(min, Math.min(max, f)) : def; };
+        const propre = {
+          pieces: r.pieces === 'classique' ? 'classique' : 'hartwig',
+          nuance: r.nuance === 'cendre' ? 'cendre' : 'cuite',
+          mode: r.mode === '3d' ? '3d' : '2d',
+          vue: { angle: num(v.angle, -1, 1, 0), bascule: (v.bascule === null || v.bascule === undefined) ? null : num(v.bascule, 0.3, 1.5, null), zoom: num(v.zoom, 0.7, 2.3, 1) }
+        };
+        await pool.query('UPDATE profils SET reglages = $1 WHERE id = $2', [JSON.stringify(propre), pid]);
+      }
       repondre(res, 200, { ok: true });
     }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
     return;
@@ -240,7 +260,7 @@ const server = http.createServer(async (req, res) => {
       if(!pool) throw new Error('Base de données non branchée.');
       const m = req.url.match(/[?&]id=(\d+)/);
       if(!m) throw new Error('identifiant manquant');
-      const r = await pool.query('SELECT id, date, niveau, resultat, nb_coups, pgn FROM parties WHERE id = $1', [parseInt(m[1],10)]);
+      const r = await pool.query('SELECT id, date, niveau, resultat, nb_coups, pgn, couleur FROM parties WHERE id = $1', [parseInt(m[1],10)]);
       if(!r.rows[0]) throw new Error('partie introuvable');
       repondre(res, 200, r.rows[0]);
     }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
@@ -251,11 +271,11 @@ const server = http.createServer(async (req, res) => {
   if(req.method === 'POST' && req.url === '/api/partie'){
     try{
       if(!pool) throw new Error('Base de données non branchée (variable DATABASE_URL absente).');
-      const { pgn, resultat, niveau, nb_coups, profil } = await lireCorps(req);
+      const { pgn, resultat, niveau, nb_coups, profil, couleur } = await lireCorps(req);
       if(typeof pgn !== 'string' || pgn.length < 3 || pgn.length > 20000) throw new Error('pgn invalide');
       const r = await pool.query(
-        'INSERT INTO parties (niveau, resultat, nb_coups, pgn, profil_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-        [String(niveau || '').slice(0,30), String(resultat || '').slice(0,30), parseInt(nb_coups,10) || 0, pgn, parseInt(profil,10) || null]
+        'INSERT INTO parties (niveau, resultat, nb_coups, pgn, profil_id, couleur) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+        [String(niveau || '').slice(0,30), String(resultat || '').slice(0,30), parseInt(nb_coups,10) || 0, pgn, parseInt(profil,10) || null, couleur === 'w' ? 'w' : 'b']
       );
       repondre(res, 200, { id: r.rows[0].id });
     }catch(e){ repondre(res, 400, { erreur: String(e.message || e) }); }
@@ -269,8 +289,8 @@ const server = http.createServer(async (req, res) => {
       const m = req.url.match(/[?&]profil=(\d+)/);
       const pid = m ? parseInt(m[1], 10) : null;
       const r = pid
-        ? await pool.query('SELECT id, date, niveau, resultat, nb_coups FROM parties WHERE profil_id = $1 ORDER BY date DESC LIMIT 50', [pid])
-        : await pool.query('SELECT id, date, niveau, resultat, nb_coups FROM parties ORDER BY date DESC LIMIT 50');
+        ? await pool.query('SELECT id, date, niveau, resultat, nb_coups, couleur FROM parties WHERE profil_id = $1 ORDER BY date DESC LIMIT 50', [pid])
+        : await pool.query('SELECT id, date, niveau, resultat, nb_coups, couleur FROM parties ORDER BY date DESC LIMIT 50');
       const stats = { victoires:0, defaites:0, nulles:0 };
       r.rows.forEach(x => {
         if(x.resultat === 'Victoire') stats.victoires++;
@@ -285,7 +305,7 @@ const server = http.createServer(async (req, res) => {
   /* --- Débrief de fin de partie --- */
   if(req.method === 'POST' && req.url === '/api/debrief'){
     try{
-      const { pgn, resultat, niveau, evals, profil } = await lireCorps(req);
+      const { pgn, resultat, niveau, evals, profil, couleur } = await lireCorps(req);
       if(typeof pgn !== 'string' || pgn.length < 3 || pgn.length > 20000) throw new Error('pgn invalide');
       if(!Array.isArray(evals) || evals.length > 400) throw new Error('évaluations invalides');
       let note = '';
@@ -293,11 +313,13 @@ const server = http.createServer(async (req, res) => {
         const r = await pool.query('SELECT nom, note_coach FROM profils WHERE id = $1', [parseInt(profil,10) || 0]);
         if(r.rows[0]) note = 'Ton interlocuteur : ' + r.rows[0].nom + '. ' + (r.rows[0].note_coach || '') + '\n';
       }
+      const camp = couleur === 'w' ? 'blancs' : 'noirs', campH = couleur === 'w' ? 'noirs' : 'blancs';
       const contenu = note +
-        'Résultat (point de vue de Jérôme) : ' + String(resultat || 'inconnu') + '\n' +
+        'Le joueur avait les ' + camp + ', Hartwig les ' + campH + '.\n' +
+        'Résultat (point de vue du joueur) : ' + String(resultat || 'inconnu') + '\n' +
         'Niveau de Hartwig : ' + String(niveau || 'inconnu') + '\n' +
         'PGN : ' + pgn + '\n' +
-        'Évaluations après chaque demi-coup (point de vue Jérôme, centipions) : ' +
+        'Évaluations après chaque demi-coup (point de vue du joueur, centipions) : ' +
         evals.map(v => (v === null || v === undefined) ? 'null' : Math.round(v)).join(', ');
       const texte = await demanderClaude(CONSIGNE_DEBRIEF, contenu, 900);
       repondre(res, 200, { texte });
