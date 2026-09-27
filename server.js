@@ -213,6 +213,7 @@ const server = http.createServer(async (req, res) => {
           pieces: r.pieces === 'classique' ? 'classique' : 'hartwig',
           nuance: r.nuance === 'cuir' ? 'cuir' : 'cendre',
           mode: r.mode === '3d' ? '3d' : '2d',
+          sens: r.sens === 'blancs' ? 'blancs' : 'joueur',
           vue: { angle: num(v.angle, -1, 1, 0), bascule: (v.bascule === null || v.bascule === undefined) ? null : num(v.bascule, 0.3, 1.5, null), zoom: num(v.zoom, 0.7, 2.3, 1) }
         };
         await pool.query('UPDATE profils SET reglages = $1 WHERE id = $2', [JSON.stringify(propre), pid]);

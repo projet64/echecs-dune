@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v31 · 27/09/2026 — damier terre cendrée / cuir, pièces blanches plus contrastées -->
+<!-- échecs dune · v32 · 27/09/2026 — réglage « vu des blancs », cases citées par le coach allumées -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -142,6 +142,15 @@
     content:"";position:absolute;inset:0;
     box-shadow:inset 0 0 0 3px var(--jaune);pointer-events:none;
   }
+  /* Case citée par le coach : halo turquoise, distinct du jaune du dernier coup */
+  .sq.cite::before{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+    background:rgba(94,200,242,.30);box-shadow:inset 0 0 0 4px #5EC8F2;
+  }
+  .sq .piece{position:relative;z-index:2;}   /* la pièce reste au-dessus du halo */
+  .sq.cite.flash::before{animation:flashCite .9s ease-in-out 2;}
+  @keyframes flashCite{0%,100%{background:rgba(94,200,242,.30)}50%{background:rgba(94,200,242,.75)}}
+  .case-cite{color:#7FD3F5;font-weight:700;border-bottom:1.5px dotted #7FD3F5;cursor:pointer;white-space:nowrap;}
   .sq.echec::after{
     content:"";position:absolute;inset:0;
     box-shadow:inset 0 0 0 3px #b03a2e;pointer-events:none;
@@ -485,6 +494,11 @@
             <button type="button" data-v="cendre" aria-pressed="true">Terre cendrée</button>
             <button type="button" data-v="cuir" aria-pressed="false">Cuir</button>
           </div>
+          <span class="rl">Sens</span>
+          <div class="seg" id="segSens">
+            <button type="button" data-v="joueur" aria-pressed="true" title="Tes pièces toujours en bas">Mes pièces en bas</button>
+            <button type="button" data-v="blancs" aria-pressed="false" title="a1 toujours en bas à gauche, comme sur les diagrammes">Vu des blancs</button>
+          </div>
         </div>
       </div>
 
@@ -515,7 +529,7 @@
 
   <footer>
     <span>SARL dune architecture + design · Nîmes</span>
-    <span class="maj">MAJ 27/09/2026</span>
+    <span class="maj">MAJ 27/09/2026 · v32</span>
   </footer>
 </div>
 
@@ -564,7 +578,16 @@ let attenteCouleur = true;                     // tant que le joueur n'a pas cho
 const campMoteur = () => (couleurJoueur === 'w' ? 'b' : 'w');
 const NOM_CAMP = { w:'blancs', b:'noirs' };
 // Le plateau est vu depuis le camp du joueur (ou depuis le camp joué dans la partie relue)
-function vueCouleur(){ return (revue && revue.info && revue.info.couleur) ? revue.info.couleur : couleurJoueur; }
+// Réglage « Vu des blancs » : a1 toujours en bas à gauche, quelle que soit la couleur jouée
+function vueCouleur(){
+  if(reglages.sens === 'blancs') return 'w';
+  return (revue && revue.info && revue.info.couleur) ? revue.info.couleur : couleurJoueur;
+}
+function phraseSens(){
+  return reglages.sens === 'blancs'
+    ? 'Plateau vu des blancs : a1 reste en bas à gauche.'
+    : 'Tes pièces seront toujours en bas du plateau.';
+}
 
 /* Réglages du plateau, propres à chaque profil (enregistrés côté serveur) */
 const VUE_DEFAUT = { angle:0, bascule:null, zoom:1 };
@@ -846,8 +869,8 @@ function demanderCouleur(){
   const enCours = game && game.history().length > 0 && !partieFinie && !revue;
   $('btnAnnulerCouleur').hidden = !enCours;
   $('sousCouleur').textContent = enCours
-    ? 'La partie en cours sera abandonnée. Tes pièces seront toujours en bas du plateau.'
-    : 'Tes pièces seront toujours en bas du plateau.';
+    ? 'La partie en cours sera abandonnée. ' + phraseSens()
+    : phraseSens();
   attenteCouleur = true;
   $('pionBlanc').innerHTML = pieceSVG('k', 'w');
   $('pionNoir').innerHTML = pieceSVG('k', 'b');
@@ -1016,6 +1039,8 @@ function dessiner(){
       if(dernierCoup && dernierCoup.to === nom) d.classList.add('arr');
       if(selection === nom) d.classList.add('select');
       if(roiEnEchec === nom) d.classList.add('echec');
+      if(casesCitees.indexOf(nom) > -1) d.classList.add('cite');
+      if(caseFlash === nom) d.classList.add('flash');
 
       const p = plateau[r][c];
       if(p){
@@ -1271,6 +1296,7 @@ function appliquer(from, to, promotion){
   if(!coup) return;
   dernierCoup = { from, to };
   selection = null; coupsLegaux = [];
+  casesCitees = []; caseFlash = null;   // la position change : les cases citées par le coach ne valent plus
   dessiner();
   sauvegarderEnCours();
   if(verifierFin()) return;
@@ -1307,6 +1333,7 @@ async function coupDuMoteur(){
   await animerCoup(from, to, 500);
   moteurPense = false;
   dernierCoup = { from, to };
+  casesCitees = []; caseFlash = null;
   dessiner();
   if(verifierFin()) return;
   majStatut('<strong>J\'ai joué : ' + annonceCoup(coup) + (game.in_check() ? ' — échec !' : '.') + '</strong>'
@@ -1766,6 +1793,72 @@ $('btnParties').onclick  = afficherParties;
 $('btnIndice').onclick   = demanderIndice;
 
 /* ------------------------------------------------------------
+   7 bis. Cases citées par le coach : allumées sur le plateau
+   Chaque case nommée dans le panneau du coach (f6, e4…) devient
+   cliquable et s'allume sur l'échiquier.
+   ------------------------------------------------------------ */
+let casesCitees = [];
+let caseFlash = null;
+function surveillerCoach(){
+  const coach = $('coach');
+  const RE = /([A-Za-zÀ-ÿ0-9]?)([a-h][1-8])(?![0-9A-Za-zÀ-ÿ])/g;
+  const PREFIXES_OK = 'KQRBNDTFCx';   // lettres de pièces en notation (Cf6, Fxe5…)
+  function marquer(){
+    obs.disconnect();
+    const trouvees = [];
+    const marcheur = document.createTreeWalker(coach, NodeFilter.SHOW_TEXT);
+    const noeuds = [];
+    while(marcheur.nextNode()) noeuds.push(marcheur.currentNode);
+    noeuds.forEach(n => {
+      if(n.parentElement && n.parentElement.closest('.case-cite, button')) return;
+      const t = n.nodeValue;
+      RE.lastIndex = 0;
+      if(!RE.test(t)) return;
+      RE.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let dernier = 0, m;
+      while((m = RE.exec(t))){
+        const avant = m[1];
+        if(avant && PREFIXES_OK.indexOf(avant) === -1) continue;
+        const debut = m.index + avant.length;
+        frag.appendChild(document.createTextNode(t.slice(dernier, debut)));
+        const sp = document.createElement('span');
+        sp.className = 'case-cite';
+        sp.dataset.case = m[2];
+        sp.textContent = m[2];
+        frag.appendChild(sp);
+        // Les chiffres du moteur (coup préféré, etc.) restent cliquables sans s'allumer d'office
+        const dansChiffres = n.parentElement && n.parentElement.closest('.chiffres');
+        if(!dansChiffres && trouvees.indexOf(m[2]) === -1) trouvees.push(m[2]);
+        dernier = debut + m[2].length;
+      }
+      if(!dernier) return;
+      frag.appendChild(document.createTextNode(t.slice(dernier)));
+      n.parentNode.replaceChild(frag, n);
+    });
+    // on garde aussi les cases déjà marquées (contenu réécrit partiellement)
+    coach.querySelectorAll('.case-cite').forEach(sp => {
+      if(!sp.closest('.chiffres') && trouvees.indexOf(sp.dataset.case) === -1) trouvees.push(sp.dataset.case);
+    });
+    casesCitees = trouvees;
+    caseFlash = null;
+    if(game) dessiner();
+    obs.observe(coach, { childList:true, subtree:true, characterData:true });
+  }
+  const obs = new MutationObserver(marquer);
+  obs.observe(coach, { childList:true, subtree:true, characterData:true });
+  // Toucher une case citée dans le texte : elle clignote sur le plateau
+  coach.addEventListener('click', (e) => {
+    const sp = e.target.closest('.case-cite');
+    if(!sp) return;
+    if(casesCitees.indexOf(sp.dataset.case) === -1) casesCitees.push(sp.dataset.case);
+    caseFlash = sp.dataset.case;
+    dessiner();
+    setTimeout(() => { if(caseFlash === sp.dataset.case){ caseFlash = null; dessiner(); } }, 1900);
+  });
+}
+
+/* ------------------------------------------------------------
    8. Vue 3D — les volumes Hartwig en perspective (three.js)
    Chargée uniquement à la première bascule : la 2D reste légère.
    ------------------------------------------------------------ */
@@ -1864,6 +1957,7 @@ function construireScene(){
     blanc:  new T.MeshPhysicalMaterial({ color:0xF6F2EA, roughness:0.42, clearcoat:0.35, clearcoatRoughness:0.25 }), // crème laqué doux
     noir:   new T.MeshPhysicalMaterial({ color:0x161513, roughness:0.4,  clearcoat:0.4,  clearcoatRoughness:0.25 }),  // noir profond laqué
     jaune:  new T.MeshBasicMaterial({ color:0xE9CA55, side:T.DoubleSide }),
+    cite:   new T.MeshBasicMaterial({ color:0x5EC8F2, side:T.DoubleSide }),
     rouge:  new T.MeshBasicMaterial({ color:0xB03A2E, side:T.DoubleSide })
   };
   // Dose de reflet par matière : le métal boit l'atelier, la pierre l'effleure, le noir reste noir
@@ -2267,6 +2361,7 @@ function synchro3D(){
   coupsLegaux.forEach(m => plat(m.captured ? trois.geo.anneau : trois.geo.point, trois.MAT.jaune, m.to));
   const roi = gActif.in_check() ? trouverRoiDe(gActif) : null;
   if(roi) plat(trois.geo.cadreSel, trois.MAT.rouge, roi);
+  casesCitees.forEach(nom => plat(trois.geo.cadreSel, trois.MAT.cite, nom));
 }
 
 function toucher3D(nom){
@@ -2349,6 +2444,7 @@ function lireReglagesLocaux(id){
 function majSegments(){
   [...$('segPieces').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === reglages.pieces ? 'true' : 'false'));
   [...$('segNuance').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === reglages.nuance ? 'true' : 'false'));
+  [...$('segSens').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === reglages.sens ? 'true' : 'false'));
 }
 function appliquerReglages(r){
   r = r || {};
@@ -2356,6 +2452,7 @@ function appliquerReglages(r){
     pieces: r.pieces === 'classique' ? 'classique' : 'hartwig',
     nuance: r.nuance === 'cuir' ? 'cuir' : 'cendre',   // l'ancienne « terre cuite » retombe sur terre cendrée
     mode: r.mode === '3d' ? '3d' : (r.mode === '2d' ? '2d' : (localStorage.getItem('dune_vue') === '3d' ? '3d' : '2d')),
+    sens: r.sens === 'blancs' ? 'blancs' : 'joueur',
     vue: Object.assign({ ...VUE_DEFAUT }, r.vue || {})
   };
   document.body.classList.toggle('nuance-cuir', reglages.nuance === 'cuir');
@@ -2462,6 +2559,11 @@ function init(){
     document.body.classList.toggle('nuance-cuir', reglages.nuance === 'cuir');
     majSegments(); appliquerNuance3D(); sauverReglages();
   });
+  $('segSens').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if(!b) return;
+    reglages.sens = b.dataset.v; majSegments(); dessiner(); sauverReglages();
+  });
+  surveillerCoach();
   if(localStorage.getItem('dune_vue') === '3d') basculerVue(true, true);
   lancerMoteur();
 }
