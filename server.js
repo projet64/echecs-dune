@@ -211,7 +211,7 @@ const server = http.createServer(async (req, res) => {
         const num = (x, min, max, def) => { const f = parseFloat(x); return Number.isFinite(f) ? Math.max(min, Math.min(max, f)) : def; };
         const propre = {
           pieces: r.pieces === 'classique' ? 'classique' : 'hartwig',
-          nuance: r.nuance === 'cendre' ? 'cendre' : 'cuite',
+          nuance: r.nuance === 'cuir' ? 'cuir' : 'cendre',
           mode: r.mode === '3d' ? '3d' : '2d',
           vue: { angle: num(v.angle, -1, 1, 0), bascule: (v.bascule === null || v.bascule === undefined) ? null : num(v.bascule, 0.3, 1.5, null), zoom: num(v.zoom, 0.7, 2.3, 1) }
         };

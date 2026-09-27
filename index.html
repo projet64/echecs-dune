@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v30 · 26/09/2026 — choix blancs/noirs, ambiance Terre du Gard, pièces classiques, gestes 3D -->
+<!-- échecs dune · v31 · 27/09/2026 — damier terre cendrée / cuir, pièces blanches plus contrastées -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -13,7 +13,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <style>
   :root{
-    /* Ambiance « Terre du Gard » : fond noir, cadre alu, damier terre cuite */
+    /* Ambiance « Terre du Gard » : fond noir, cadre alu, damier terre cendrée (ou cuir) */
     --fond:#0E0D0C;
     --surface:#181614;
     --surface-2:#221F1C;
@@ -23,13 +23,13 @@
     --jaune:#E9CA55;
     --encre:#141312;
     --rouge:#D2604F;
-    --case-claire:#EEECE7;
-    --case-foncee:#8F5B45;
+    --case-claire:#DEDAD3;   /* un ton sous le blanc des pièces, pour qu'elles se détachent */
+    --case-foncee:#7E5E52;   /* terre cendrée */
     --sq: 64px;
     --cad: calc(var(--sq) * .42);
     color-scheme: dark;
   }
-  body.nuance-cendre{ --case-claire:#ECECEA; --case-foncee:#7E5E52; }
+  body.nuance-cuir{ --case-foncee:#735F56; }   /* terre cendrée un peu grisée : cuir brun */
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;margin:0;}
   body{
@@ -161,11 +161,11 @@
     filter:drop-shadow(0 2px 2px rgba(17,17,17,.30));
   }
   /* Jeu Hartwig (Bauhaus) */
-  .piece.b{color:#FFFFFF;--tr:#141414;--sw:4;}
+  .piece.b{color:#FFFFFF;--tr:#141414;--sw:4;filter:drop-shadow(0 2px 2.5px rgba(0,0,0,.45));}
   .piece.n{color:#161616;--tr:rgba(255,255,255,.92);--sw:2.4;}
   /* Jeu classique dune */
   .piece.classique{width:88%;height:88%;}
-  .piece.classique.b{color:#FBF6EA;--tr:#2B2118;--sw:3;}
+  .piece.classique.b{color:#FFFDF8;--tr:#1E1712;--sw:3.2;}
   .piece.classique.n{color:#2B2118;--tr:#F3E4C4;--sw:2.2;}
   .fantome{
     position:fixed;z-index:60;pointer-events:none;
@@ -482,8 +482,8 @@
           </div>
           <span class="rl">Cases</span>
           <div class="seg" id="segNuance">
-            <button type="button" data-v="cuite" aria-pressed="true">Terre cuite</button>
-            <button type="button" data-v="cendre" aria-pressed="false">Terre cendrée</button>
+            <button type="button" data-v="cendre" aria-pressed="true">Terre cendrée</button>
+            <button type="button" data-v="cuir" aria-pressed="false">Cuir</button>
           </div>
         </div>
       </div>
@@ -515,7 +515,7 @@
 
   <footer>
     <span>SARL dune architecture + design · Nîmes</span>
-    <span class="maj">MAJ 26/09/2026</span>
+    <span class="maj">MAJ 27/09/2026</span>
   </footer>
 </div>
 
@@ -568,7 +568,7 @@ function vueCouleur(){ return (revue && revue.info && revue.info.couleur) ? revu
 
 /* Réglages du plateau, propres à chaque profil (enregistrés côté serveur) */
 const VUE_DEFAUT = { angle:0, bascule:null, zoom:1 };
-let reglages = { pieces:'hartwig', nuance:'cuite', mode:'2d', vue:{ ...VUE_DEFAUT } };
+let reglages = { pieces:'hartwig', nuance:'cendre', mode:'2d', vue:{ ...VUE_DEFAUT } };
 
 /* Chaque niveau combine trois leviers : la force de calcul de Stockfish
    (skill/temps/profondeur) ET un taux d'imprécisions volontaires (alea) :
@@ -1861,7 +1861,7 @@ function construireScene(){
     foncee: new T.MeshStandardMaterial({ roughness:0.58 }),
     alu:    new T.MeshStandardMaterial({ color:0xCFCBC2, roughness:0.3, metalness:0.95 }),
     socle:  new T.MeshStandardMaterial({ color:0x242424, roughness:0.42, metalness:0.4 }),  // fonte d'alu anthracite
-    blanc:  new T.MeshPhysicalMaterial({ color:0xE9E2D0, roughness:0.42, clearcoat:0.35, clearcoatRoughness:0.25 }), // crème laqué doux
+    blanc:  new T.MeshPhysicalMaterial({ color:0xF6F2EA, roughness:0.42, clearcoat:0.35, clearcoatRoughness:0.25 }), // crème laqué doux
     noir:   new T.MeshPhysicalMaterial({ color:0x161513, roughness:0.4,  clearcoat:0.4,  clearcoatRoughness:0.25 }),  // noir profond laqué
     jaune:  new T.MeshBasicMaterial({ color:0xE9CA55, side:T.DoubleSide }),
     rouge:  new T.MeshBasicMaterial({ color:0xB03A2E, side:T.DoubleSide })
@@ -2202,12 +2202,13 @@ function recentrer3D(){
 
 // Teinte des dalles selon la nuance choisie (couleurs saisies en sRGB, comme en 2D)
 const NUANCES = {
-  cuite:  { claire:'#EEECE7', foncee:'#8F5B45' },
-  cendre: { claire:'#ECECEA', foncee:'#7E5E52' }
+  // En 3D la lumière éclaircit les dalles : cases claires un ton plus bas qu'en 2D pour que les pièces blanches se détachent
+  cendre: { claire:'#CBC6BD', foncee:'#7E5E52' },
+  cuir:   { claire:'#CBC6BD', foncee:'#735F56' }
 };
 function appliquerNuance3D(){
   if(!trois) return;
-  const n = NUANCES[reglages.nuance] || NUANCES.cuite;
+  const n = NUANCES[reglages.nuance] || NUANCES.cendre;
   trois.casesInfo.forEach(ci => {
     ci.mesh.material.color.set(ci.sombre ? n.foncee : n.claire).convertSRGBToLinear();
     ci.mesh.material.color.offsetHSL(0, 0, ci.delta);
@@ -2353,11 +2354,11 @@ function appliquerReglages(r){
   r = r || {};
   reglages = {
     pieces: r.pieces === 'classique' ? 'classique' : 'hartwig',
-    nuance: r.nuance === 'cendre' ? 'cendre' : 'cuite',
+    nuance: r.nuance === 'cuir' ? 'cuir' : 'cendre',   // l'ancienne « terre cuite » retombe sur terre cendrée
     mode: r.mode === '3d' ? '3d' : (r.mode === '2d' ? '2d' : (localStorage.getItem('dune_vue') === '3d' ? '3d' : '2d')),
     vue: Object.assign({ ...VUE_DEFAUT }, r.vue || {})
   };
-  document.body.classList.toggle('nuance-cendre', reglages.nuance === 'cendre');
+  document.body.classList.toggle('nuance-cuir', reglages.nuance === 'cuir');
   majSegments();
   appliquerNuance3D();
   if(trois) tailler3D();
@@ -2458,7 +2459,7 @@ function init(){
   $('segNuance').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if(!b) return;
     reglages.nuance = b.dataset.v;
-    document.body.classList.toggle('nuance-cendre', reglages.nuance === 'cendre');
+    document.body.classList.toggle('nuance-cuir', reglages.nuance === 'cuir');
     majSegments(); appliquerNuance3D(); sauverReglages();
   });
   if(localStorage.getItem('dune_vue') === '3d') basculerVue(true, true);
