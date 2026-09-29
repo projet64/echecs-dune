@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- échecs dune · v32 · 27/09/2026 — réglage « vu des blancs », cases citées par le coach allumées -->
+<!-- échecs dune · v33 · 29/09/2026 — départ en deux choix : couleur + côté en bas, mémorisés par joueur -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -286,7 +286,12 @@
     border:2px solid var(--ligne);background:var(--surface-2);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
   }
-  .choix-couleur .options button:hover,.choix-couleur .options button:focus-visible{border-color:var(--jaune);outline:none;}
+  .choix-couleur .options button:hover,.choix-couleur .options button:focus-visible{border-color:var(--texte-2);outline:none;}
+  .choix-couleur .options button[aria-pressed="true"]{border-color:var(--jaune);background:#2E2A1C;box-shadow:0 0 0 1px var(--jaune);}
+  .choix-couleur .sens-choix{margin-top:18px;display:flex;flex-direction:column;gap:8px;}
+  .choix-couleur .sens-choix .lib{font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--texte-2);}
+  .choix-couleur .options.deux{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .choix-couleur .options.deux button{min-height:72px;}
   .choix-couleur .pion{width:64px;height:64px;border-radius:12px;background:var(--case-claire);display:flex;align-items:center;justify-content:center;}
   .choix-couleur .pion.fonce{background:var(--case-foncee);}
   .choix-couleur .pion.mix{background:linear-gradient(135deg,var(--case-claire) 50%,var(--case-foncee) 50%);}
@@ -529,7 +534,7 @@
 
   <footer>
     <span>SARL dune architecture + design · Nîmes</span>
-    <span class="maj">MAJ 27/09/2026 · v32</span>
+    <span class="maj">MAJ 29/09/2026 · v33</span>
   </footer>
 </div>
 
@@ -545,12 +550,20 @@
   <div class="choix-couleur">
     <h3 id="titreCouleur">Tu prends quelles pièces ?</h3>
     <p id="sousCouleur">Tes pièces seront toujours en bas du plateau.</p>
-    <div class="options">
-      <button type="button" data-c="w"><span class="pion" id="pionBlanc"></span><span class="t">Les blancs</span><span class="d">Tu commences</span></button>
-      <button type="button" data-c="b"><span class="pion fonce" id="pionNoir"></span><span class="t">Les noirs</span><span class="d">Hartwig commence</span></button>
-      <button type="button" data-c="hasard"><span class="pion mix" id="pionHasard"></span><span class="t">Au hasard</span><span class="d">Tirage au sort</span></button>
+    <div class="options" id="optCouleur">
+      <button type="button" data-c="w" aria-pressed="false"><span class="pion" id="pionBlanc"></span><span class="t">Les blancs</span><span class="d">Tu commences</span></button>
+      <button type="button" data-c="b" aria-pressed="false"><span class="pion fonce" id="pionNoir"></span><span class="t">Les noirs</span><span class="d">Hartwig commence</span></button>
+      <button type="button" data-c="hasard" aria-pressed="false"><span class="pion mix" id="pionHasard"></span><span class="t">Au hasard</span><span class="d">Tirage au sort</span></button>
     </div>
-    <button type="button" class="act" id="btnAnnulerCouleur" style="margin-top:14px;width:100%;" hidden>Continuer ma partie en cours</button>
+    <div class="sens-choix">
+      <span class="lib">En bas du plateau</span>
+      <div class="options deux" id="optSens">
+        <button type="button" data-s="joueur" aria-pressed="false"><span class="t">Mes pièces</span><span class="d">comme assis à ma place</span></button>
+        <button type="button" data-s="blancs" aria-pressed="false"><span class="t">Les blancs</span><span class="d">a1 en bas à gauche, toujours</span></button>
+      </div>
+    </div>
+    <button type="button" class="act primaire" id="btnCommencer" style="margin-top:16px;width:100%;min-height:58px;font-size:17px;" disabled>Commencer la partie</button>
+    <button type="button" class="act" id="btnAnnulerCouleur" style="margin-top:10px;width:100%;" hidden>Continuer ma partie en cours</button>
   </div>
 </div>
 
@@ -869,9 +882,13 @@ function demanderCouleur(){
   const enCours = game && game.history().length > 0 && !partieFinie && !revue;
   $('btnAnnulerCouleur').hidden = !enCours;
   $('sousCouleur').textContent = enCours
-    ? 'La partie en cours sera abandonnée. ' + phraseSens()
-    : phraseSens();
+    ? 'La partie en cours sera abandonnée. Choisis ta couleur et ce que tu veux voir en bas du plateau.'
+    : 'Choisis ta couleur et ce que tu veux voir en bas du plateau.';
   attenteCouleur = true;
+  // On repropose les derniers choix du joueur : pour lui, un seul geste « Commencer »
+  choixCouleur = reglages.couleurPref || null;
+  choixSens = reglages.sens || 'joueur';
+  majChoixDepart();
   $('pionBlanc').innerHTML = pieceSVG('k', 'w');
   $('pionNoir').innerHTML = pieceSVG('k', 'b');
   $('pionHasard').innerHTML = pieceSVG('p', Math.random() < .5 ? 'w' : 'b');
@@ -879,8 +896,15 @@ function demanderCouleur(){
   majStatut('<strong>Nouvelle partie.</strong><span class="trait">Choisis ta couleur</span>');
   majBoutons();
   $('voileCouleur').classList.add('on');
-  const b = $('voileCouleur').querySelector('button');
+  const b = choixCouleur ? $('btnCommencer') : $('voileCouleur').querySelector('button');
   if(b) b.focus();
+}
+
+let choixCouleur = null, choixSens = 'joueur';
+function majChoixDepart(){
+  [...$('optCouleur').children].forEach(x => x.setAttribute('aria-pressed', x.dataset.c === choixCouleur ? 'true' : 'false'));
+  [...$('optSens').children].forEach(x => x.setAttribute('aria-pressed', x.dataset.s === choixSens ? 'true' : 'false'));
+  $('btnCommencer').disabled = !choixCouleur;
 }
 
 function lancerPartie(choix){
@@ -1764,10 +1788,23 @@ $('btnNouvelle').onclick = () => {
   if(moteurPense) return;
   demanderCouleur();
 };
-$('voileCouleur').addEventListener('click', (e) => {
-  const b = e.target.closest('button[data-c]');
-  if(b) lancerPartie(b.dataset.c);
+// Deux choix, comme en vrai : sa couleur, et le côté du plateau qu'on veut voir en bas
+$('optCouleur').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-c]'); if(!b) return;
+  choixCouleur = b.dataset.c; majChoixDepart();
 });
+$('optSens').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-s]'); if(!b) return;
+  choixSens = b.dataset.s; majChoixDepart();
+});
+$('btnCommencer').onclick = () => {
+  if(!choixCouleur) return;
+  reglages.couleurPref = choixCouleur;
+  reglages.sens = choixSens;
+  majSegments();
+  sauverReglages();
+  lancerPartie(choixCouleur);
+};
 $('btnAnnulerCouleur').onclick = () => {
   attenteCouleur = false;
   $('voileCouleur').classList.remove('on');
@@ -2453,6 +2490,7 @@ function appliquerReglages(r){
     nuance: r.nuance === 'cuir' ? 'cuir' : 'cendre',   // l'ancienne « terre cuite » retombe sur terre cendrée
     mode: r.mode === '3d' ? '3d' : (r.mode === '2d' ? '2d' : (localStorage.getItem('dune_vue') === '3d' ? '3d' : '2d')),
     sens: r.sens === 'blancs' ? 'blancs' : 'joueur',
+    couleurPref: ['w','b','hasard'].indexOf(r.couleurPref) > -1 ? r.couleurPref : null,
     vue: Object.assign({ ...VUE_DEFAUT }, r.vue || {})
   };
   document.body.classList.toggle('nuance-cuir', reglages.nuance === 'cuir');
